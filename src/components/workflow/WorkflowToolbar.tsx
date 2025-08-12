@@ -27,6 +27,7 @@ export interface WorkflowState {
   lastRun?: Date
   isValid: boolean
   validationErrors: string[]
+  lastValidation?: unknown // ValidationResult type - using unknown to avoid circular imports
 }
 
 interface WorkflowToolbarProps {
