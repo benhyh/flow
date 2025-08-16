@@ -4,7 +4,7 @@
  */
 
 import { type Node, type Edge } from '@xyflow/react'
-import { type WorkflowState } from '@/components/workflow/WorkflowToolbar'
+import { type WorkflowState } from '@/components/workflow/toolbar/WorkflowToolbar'
 
 export interface StoredWorkflow {
   id: string

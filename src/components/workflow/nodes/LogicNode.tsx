@@ -3,7 +3,7 @@
 import React from 'react'
 import { Handle, Position, type NodeProps } from '@xyflow/react'
 import { type BaseNodeData } from './BaseNode'
-import { setConfiguredNode } from '../ConfigPanel'
+import { setConfiguredNode } from '../panels/ConfigPanel'
 
 interface LogicNodeData extends BaseNodeData {
   logicType?: 'condition' | 'filter' | 'delay' | 'split'

@@ -1,4 +1,4 @@
-import { CustomEdge } from './edges/CustomEdge'
+import { CustomEdge } from '../edges/CustomEdge'
 
 // Register custom edge types with React Flow
 export const edgeTypes = {

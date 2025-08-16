@@ -1,6 +1,6 @@
 import { useState, useCallback, useRef } from 'react'
 import { useReactFlow, type Node, type Edge } from '@xyflow/react'
-import { type ExecutionLog, type ExecutionRun, type LogLevel } from './DebugPanel'
+import { type ExecutionLog, type ExecutionRun, type LogLevel } from '../panels/DebugPanel'
 
 // Node execution status
 export type NodeExecutionStatus = 'idle' | 'running' | 'success' | 'error'
@@ -71,7 +71,7 @@ export function useWorkflowExecution() {
 
   // Add log to current run
   const addLog = useCallback((log: ExecutionLog) => {
-    setCurrentRun(prev => {
+    setCurrentRun((prev: ExecutionRun | null) => {
       if (!prev) return prev
       return {
         ...prev,

@@ -47,6 +47,14 @@ export function isValidConnection(
   targetNode: Node,
   existingEdges: Edge[] = []
 ): { isValid: boolean; reason?: string } {
+  // Check for self-connection first
+  if (sourceNode.id === targetNode.id) {
+    return {
+      isValid: false,
+      reason: 'Nodes cannot connect to themselves'
+    }
+  }
+
   // Get node categories
   const sourceCategory = getNodeCategory(sourceNode)
   const targetCategory = getNodeCategory(targetNode)
@@ -57,14 +65,6 @@ export function isValidConnection(
     return {
       isValid: false,
       reason: `${sourceCategory} nodes cannot connect to ${targetCategory} nodes`
-    }
-  }
-  
-  // Check for self-connection
-  if (sourceNode.id === targetNode.id) {
-    return {
-      isValid: false,
-      reason: 'Nodes cannot connect to themselves'
     }
   }
   
@@ -107,7 +107,13 @@ function wouldCreateCircularDependency(
   existingEdges: Edge[]
 ): boolean {
   // Create a temporary edge list with the new connection
-  const tempEdges = [...existingEdges, { id: 'temp', source: sourceId, target: targetId }]
+  const tempEdges = [...existingEdges, { 
+    id: 'temp', 
+    source: sourceId, 
+    target: targetId,
+    sourceHandle: null,
+    targetHandle: null
+  } as Edge]
   
   // Use DFS to detect cycles
   const visited = new Set<string>()
@@ -152,6 +158,14 @@ export function validateConnection(
   nodes: Node[],
   edges: Edge[]
 ): { isValid: boolean; reason?: string } {
+  // Handle null or invalid connection
+  if (!connection || !connection.source || !connection.target) {
+    return {
+      isValid: false,
+      reason: 'Source or target node not found'
+    }
+  }
+
   const sourceNode = nodes.find(node => node.id === connection.source)
   const targetNode = nodes.find(node => node.id === connection.target)
   

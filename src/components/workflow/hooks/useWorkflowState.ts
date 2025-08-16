@@ -1,8 +1,8 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
 import { type Node, type Edge } from '@xyflow/react'
-import { type WorkflowState, type WorkflowStatus } from './WorkflowToolbar'
+import { type WorkflowState, type WorkflowStatus } from '../toolbar/WorkflowToolbar'
 import { saveWorkflow, loadWorkflow } from '@/lib/workflow-storage'
-import { validateWorkflow, type ValidationResult } from './workflowValidation'
+import { validateWorkflow, type ValidationResult } from '../utils/workflowValidation'
 import { toast } from 'sonner'
 
 // Default workflow state

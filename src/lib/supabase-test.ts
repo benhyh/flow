@@ -33,7 +33,7 @@ export async function testSupabaseConnection() {
     
     // Test database connection
     try {
-      const { data: testData, error: dbError } = await supabase
+      const { data: _testData, error: dbError } = await supabase
         .from('users')
         .select('count')
         .limit(1)
@@ -84,7 +84,7 @@ export async function testAuthMethods() {
     
     // Test sign in (this will fail if user doesn't exist, which is expected)
     console.log('Testing sign in method...')
-    const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
+    const { data: _signInData, error: signInError } = await supabase.auth.signInWithPassword({
       email: testEmail,
       password: testPassword
     })

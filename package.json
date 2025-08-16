@@ -13,6 +13,10 @@
     "test": "jest",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
+    "test:workflow": "jest src/components/workflow",
+    "test:integration": "jest --testPathPattern=integration",
+    "test:accessibility": "jest --testPathPattern=accessibility",
+    "test:performance": "jest --testPathPattern=performance",
     "type-check": "tsc --noEmit"
   },
   "dependencies": {
@@ -30,6 +34,7 @@
     "@xyflow/react": "^12.8.2",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "jest-axe": "^10.0.0",
     "lucide-react": "^0.537.0",
     "motion": "^12.23.12",
     "next": "15.4.6",
@@ -45,7 +50,9 @@
     "@tailwindcss/postcss": "^4",
     "@testing-library/jest-dom": "^6.6.4",
     "@testing-library/react": "^16.3.0",
+    "@testing-library/user-event": "^14.6.1",
     "@types/jest": "^30.0.0",
+    "@types/jest-axe": "^3.5.9",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",

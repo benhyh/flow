@@ -30,7 +30,7 @@ import {
 import {
   type ValidationResult,
   type ValidationError,
-} from './workflowValidation'
+} from '../utils/workflowValidation'
 
 interface ValidationPanelProps {
   validation: ValidationResult | null

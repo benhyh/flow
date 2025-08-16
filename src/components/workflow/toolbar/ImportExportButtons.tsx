@@ -10,7 +10,7 @@ import {
   downloadWorkflowFile, 
   handleFileImport,
   type WorkflowExportData 
-} from './workflowImportExport'
+} from '../utils/workflowImportExport'
 import { toast } from 'sonner'
 
 interface ImportExportButtonsProps {

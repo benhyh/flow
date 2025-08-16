@@ -3,22 +3,49 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
 import { useAuth } from '@/providers/AuthProvider'
 import { useRouter } from 'next/navigation'
-import { ReactFlow, ReactFlowProvider, applyNodeChanges, applyEdgeChanges, addEdge, type Node, type Edge, type NodeChange, type EdgeChange, type Connection, type ReactFlowInstance, Background } from '@xyflow/react'
-import { NodeLibrary, type NodeTypeDefinition } from '@/components/workflow/NodeLibrary'
-import { nodeTypes } from '@/components/workflow/nodeTypes'
-import { edgeTypes } from '@/components/workflow/edgeTypes'
-import { ConfigPanel } from '@/components/workflow/ConfigPanel'
-import { validateConnection } from '@/components/workflow/connectionValidation'
-import { ConnectionFeedback, useConnectionFeedback } from '@/components/workflow/ConnectionFeedback'
-import { WorkflowToolbar } from '@/components/workflow/WorkflowToolbar'
-import { useWorkflowState } from '@/components/workflow/useWorkflowState'
-import { DebugPanel } from '@/components/workflow/DebugPanel'
-import { WorkflowExecutionProvider, useWorkflowExecutionContext } from '@/components/workflow/WorkflowExecutionProvider'
-import { EmptyCanvasWelcome } from '@/components/workflow/EmptyCanvasWelcome'
-import { ResponsiveLayout } from '@/components/workflow/ResponsiveLayout'
-import { AdvancedCanvasControls } from '@/components/workflow/AdvancedCanvasControls'
-import { KeyboardShortcuts } from '@/components/workflow/KeyboardShortcuts'
-import { HelpSystem } from '@/components/workflow/HelpSystem'
+import {
+  ReactFlow,
+  ReactFlowProvider,
+  applyNodeChanges,
+  applyEdgeChanges,
+  addEdge,
+  type Node,
+  type Edge,
+  type NodeChange,
+  type EdgeChange,
+  type Connection,
+  type ReactFlowInstance,
+  Background,
+} from '@xyflow/react'
+import {
+  NodeLibrary,
+  type NodeTypeDefinition,
+  nodeTypes,
+  edgeTypes,
+  ConfigPanel,
+  validateConnection,
+} from '@/components/workflow'
+import {
+  ConnectionFeedback,
+  useConnectionFeedback,
+  WorkflowToolbar,
+  useWorkflowState,
+  DebugPanel,
+  WorkflowExecutionProvider,
+  useWorkflowExecutionContext,
+  EmptyCanvasWelcome,
+  ResponsiveLayout,
+  AdvancedCanvasControls,
+  KeyboardShortcuts,
+  HelpSystem,
+  useUndoRedo,
+  useAutoSnapshot,
+  useUndoRedoKeyboard,
+  WorkflowManager,
+  ValidationPanel,
+} from '@/components/workflow'
+import { Button } from '@/components/ui/button'
+import { Undo, Redo, Save } from 'lucide-react'
 
 import '@xyflow/react/dist/style.css'
 
@@ -30,27 +57,23 @@ export default function Dashboard() {
   const { user, loading, signOut } = useAuth()
   const router = useRouter()
   const reactFlowWrapper = useRef<HTMLDivElement>(null)
-  const [reactFlowInstance, setReactFlowInstance] = useState<ReactFlowInstance | null>(null)
+  const [reactFlowInstance, setReactFlowInstance] =
+    useState<ReactFlowInstance | null>(null)
   const { feedback, showFeedback, clearFeedback } = useConnectionFeedback()
-  const { 
-    workflowState, 
-    updateWorkflowState, 
-    handleSave, 
+  const {
+    workflowState,
+    updateWorkflowState,
+    handleSave,
     handleAutoSave,
     handleToggleStatus,
     validateCurrentWorkflow,
-    createNewWorkflow
+    createNewWorkflow,
   } = useWorkflowState({
-    name: 'Untitled Workflow'
+    name: 'Untitled Workflow',
   })
-  
-  const {
-    executionRuns,
-    currentRun,
-    executeWorkflow,
-    clearLogs,
-    isExecuting
-  } = useWorkflowExecutionContext()
+
+  const { executionRuns, currentRun, executeWorkflow, clearLogs, isExecuting } =
+    useWorkflowExecutionContext()
 
   const [debugPanelVisible, setDebugPanelVisible] = useState(false)
   const [validationPanelVisible, setValidationPanelVisible] = useState(false)
@@ -62,10 +85,13 @@ export default function Dashboard() {
   const autoSnapshot = useAutoSnapshot(nodes, edges, undoRedo, 2000) // 2 second debounce
 
   // Apply undo/redo snapshot
-  const applySnapshot = useCallback((snapshot: { nodes: Node[]; edges: Edge[] }) => {
-    setNodes(snapshot.nodes)
-    setEdges(snapshot.edges)
-  }, [])
+  const applySnapshot = useCallback(
+    (snapshot: { nodes: Node[]; edges: Edge[] }) => {
+      setNodes(snapshot.nodes)
+      setEdges(snapshot.edges)
+    },
+    []
+  )
 
   // Keyboard shortcuts for undo/redo
   const { handleKeyDown } = useUndoRedoKeyboard(undoRedo, applySnapshot)
@@ -86,7 +112,7 @@ export default function Dashboard() {
       const validationTimeout = setTimeout(() => {
         validateCurrentWorkflow(nodes, edges)
       }, 100) // Small delay to prevent excessive validation calls
-      
+
       // Auto-save after 5 seconds of inactivity
       const autoSaveTimeout = setTimeout(() => {
         handleAutoSave(nodes, edges)
@@ -100,17 +126,23 @@ export default function Dashboard() {
   }, [nodes, edges, handleAutoSave, validateCurrentWorkflow])
 
   // Create serializable wrapper functions for template system
-  const handleNodesChange = useCallback((newNodes: Node[]) => {
-    setNodes(newNodes)
-    // Schedule snapshot for undo/redo (debounced)
-    setTimeout(() => autoSnapshot.scheduleSnapshot('Node changes'), 200)
-  }, [autoSnapshot])
+  const handleNodesChange = useCallback(
+    (newNodes: Node[]) => {
+      setNodes(newNodes)
+      // Schedule snapshot for undo/redo (debounced)
+      setTimeout(() => autoSnapshot.scheduleSnapshot('Node changes'), 200)
+    },
+    [autoSnapshot]
+  )
 
-  const handleEdgesChange = useCallback((newEdges: Edge[]) => {
-    setEdges(newEdges)
-    // Schedule snapshot for undo/redo (debounced)
-    setTimeout(() => autoSnapshot.scheduleSnapshot('Edge changes'), 200)
-  }, [autoSnapshot])
+  const handleEdgesChange = useCallback(
+    (newEdges: Edge[]) => {
+      setEdges(newEdges)
+      // Schedule snapshot for undo/redo (debounced)
+      setTimeout(() => autoSnapshot.scheduleSnapshot('Edge changes'), 200)
+    },
+    [autoSnapshot]
+  )
 
   useEffect(() => {
     if (!loading && !user) {
@@ -120,40 +152,49 @@ export default function Dashboard() {
 
   const onNodesChange = useCallback(
     (changes: NodeChange[]) => {
-      setNodes((nodesSnapshot) => {
+      setNodes(nodesSnapshot => {
         const newNodes = applyNodeChanges(changes, nodesSnapshot)
         // Schedule snapshot for undo/redo (debounced)
-        setTimeout(() => autoSnapshot.scheduleSnapshot('Node modification'), 100)
+        setTimeout(
+          () => autoSnapshot.scheduleSnapshot('Node modification'),
+          100
+        )
         return newNodes
       })
       // Don't reset validation here - let the useEffect handle it
     },
-    [autoSnapshot],
+    [autoSnapshot]
   )
 
   const onEdgesChange = useCallback(
     (changes: EdgeChange[]) => {
-      setEdges((edgesSnapshot) => {
+      setEdges(edgesSnapshot => {
         const newEdges = applyEdgeChanges(changes, edgesSnapshot)
         // Schedule snapshot for undo/redo (debounced)
-        setTimeout(() => autoSnapshot.scheduleSnapshot('Edge modification'), 100)
+        setTimeout(
+          () => autoSnapshot.scheduleSnapshot('Edge modification'),
+          100
+        )
         return newEdges
       })
       // Don't reset validation here - let the useEffect handle it
     },
-    [autoSnapshot],
+    [autoSnapshot]
   )
 
   const onConnect = useCallback(
     (params: Connection) => {
       // Validate the connection before adding it
       const validation = validateConnection(params, nodes, edges)
-      
+
       if (validation.isValid) {
-        setEdges((edgesSnapshot) => {
+        setEdges(edgesSnapshot => {
           const newEdges = addEdge(params, edgesSnapshot)
           // Schedule snapshot for undo/redo
-          setTimeout(() => autoSnapshot.scheduleSnapshot('Connection created'), 100)
+          setTimeout(
+            () => autoSnapshot.scheduleSnapshot('Connection created'),
+            100
+          )
           return newEdges
         })
         showFeedback('Connection created successfully!', 'success')
@@ -162,7 +203,7 @@ export default function Dashboard() {
         showFeedback(validation.reason || 'Invalid connection', 'error')
       }
     },
-    [nodes, edges, showFeedback, autoSnapshot],
+    [nodes, edges, showFeedback, autoSnapshot]
   )
 
   // Provide real-time validation feedback during connection attempts
@@ -173,13 +214,13 @@ export default function Dashboard() {
         source: connection.source,
         target: connection.target,
         sourceHandle: connection.sourceHandle || null,
-        targetHandle: connection.targetHandle || null
+        targetHandle: connection.targetHandle || null,
       }
-      
+
       const validation = validateConnection(connectionParams, nodes, edges)
       return validation.isValid
     },
-    [nodes, edges],
+    [nodes, edges]
   )
 
   // Drag and drop handlers
@@ -210,16 +251,16 @@ export default function Dashboard() {
           id: `${nodeType.subtype}-${Date.now()}`,
           type: nodeType.type, // Use the custom node type
           position,
-          data: { 
+          data: {
             label: nodeType.label,
             nodeType: nodeType.subtype,
             icon: nodeType.icon,
             color: nodeType.color,
-            status: 'idle'
+            status: 'idle',
           },
         }
 
-        setNodes((nds) => {
+        setNodes(nds => {
           const newNodes = nds.concat(newNode)
           // Schedule snapshot for undo/redo
           setTimeout(() => autoSnapshot.scheduleSnapshot('Node added'), 100)
@@ -230,7 +271,7 @@ export default function Dashboard() {
         console.error('Error parsing dropped node data:', error)
       }
     },
-    [reactFlowInstance, updateWorkflowState],
+    [autoSnapshot, reactFlowInstance]
   )
 
   const handleSignOut = async () => {
@@ -261,7 +302,7 @@ export default function Dashboard() {
             <WorkflowToolbar
               workflowState={{
                 ...workflowState,
-                status: isExecuting ? 'testing' : workflowState.status
+                status: isExecuting ? 'testing' : workflowState.status,
               }}
               onWorkflowStateChange={updateWorkflowState}
               onRunTest={executeWorkflow}
@@ -338,7 +379,15 @@ export default function Dashboard() {
                 setEdges(loadedEdges)
                 updateWorkflowState(loadedState)
                 // Take snapshot after loading
-                setTimeout(() => undoRedo.takeSnapshot(loadedNodes, loadedEdges, 'Workflow loaded'), 100)
+                setTimeout(
+                  () =>
+                    undoRedo.takeSnapshot(
+                      loadedNodes,
+                      loadedEdges,
+                      'Workflow loaded'
+                    ),
+                  100
+                )
               }}
               onCreateNew={() => {
                 const newState = createNewWorkflow()
@@ -352,7 +401,9 @@ export default function Dashboard() {
 
             {/* User info and logout */}
             <div className="flex items-center gap-2 bg-background/80 backdrop-blur-sm rounded-lg px-3 py-1.5 border">
-              <span className="text-sm">Welcome, {user.email?.split('@')[0]}!</span>
+              <span className="text-sm">
+                Welcome, {user.email?.split('@')[0]}!
+              </span>
               <button
                 onClick={handleSignOut}
                 className="bg-red-600 hover:bg-red-700 text-white px-2 py-1 rounded text-xs transition-colors"
@@ -363,10 +414,7 @@ export default function Dashboard() {
           </div>
 
           {/* React Flow Canvas */}
-          <div 
-            ref={reactFlowWrapper}
-            className="w-full h-full relative"
-          >
+          <div ref={reactFlowWrapper} className="w-full h-full relative">
             <ReactFlow
               nodes={nodes}
               edges={edges}
@@ -387,10 +435,7 @@ export default function Dashboard() {
               fitView
             >
               <Background />
-              <AdvancedCanvasControls 
-                nodes={nodes}
-                showMinimap={true}
-              />
+              <AdvancedCanvasControls nodes={nodes} showMinimap={true} />
               <ConfigPanel />
             </ReactFlow>
 
@@ -422,7 +467,7 @@ export default function Dashboard() {
             validation={workflowState.lastValidation || null}
             isVisible={validationPanelVisible}
             onToggle={() => setValidationPanelVisible(!validationPanelVisible)}
-            onFixError={(error) => {
+            onFixError={error => {
               // Handle error fixing - could focus on the problematic node
               console.log('Fix error:', error)
             }}

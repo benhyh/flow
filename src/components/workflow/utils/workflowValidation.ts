@@ -30,31 +30,31 @@ export interface ValidationResult {
 export function validateWorkflow(nodes: Node[], edges: Edge[]): ValidationResult {
   const errors: ValidationError[] = []
   const warnings: ValidationError[] = []
-  const info: ValidationError[] = []
+  const _info: ValidationError[] = []
 
   // Structure validation
-  validateWorkflowStructure(nodes, edges, errors, warnings, info)
+  validateWorkflowStructure(nodes, edges, errors, warnings, _info)
   
   // Node configuration validation
-  validateNodeConfigurations(nodes, errors, warnings, info)
+  validateNodeConfigurations(nodes, errors, warnings, _info)
   
   // Connection validation
-  validateConnections(nodes, edges, errors, warnings, info)
+  validateConnections(nodes, edges, errors, warnings, _info)
   
   // Logic flow validation
-  validateLogicFlow(nodes, edges, errors, warnings, info)
+  validateLogicFlow(nodes, edges, errors, warnings, _info)
   
   // Performance validation
-  validatePerformance(nodes, edges, errors, warnings, info)
+  validatePerformance(nodes, edges, errors, warnings, _info)
 
   // Calculate quality score
-  const score = calculateQualityScore(errors, warnings, info)
+  const score = calculateQualityScore(errors, warnings, _info)
 
   return {
     isValid: errors.length === 0,
     errors,
     warnings,
-    info,
+    info: _info,
     score
   }
 }
@@ -67,7 +67,7 @@ function validateWorkflowStructure(
   edges: Edge[], 
   errors: ValidationError[], 
   warnings: ValidationError[], 
-  info: ValidationError[]
+  _info: ValidationError[]
 ): void {
   // Check for empty workflow
   if (nodes.length === 0) {
@@ -394,7 +394,7 @@ function validateConnections(
   edges: Edge[], 
   errors: ValidationError[], 
   warnings: ValidationError[], 
-  info: ValidationError[]
+  _info: ValidationError[]
 ): void {
   const nodeMap = new Map(nodes.map(node => [node.id, node]))
 
@@ -607,7 +607,7 @@ function findCircularDependencies(nodes: Node[], edges: Edge[]): string[][] {
 function calculateQualityScore(
   errors: ValidationError[], 
   warnings: ValidationError[], 
-  info: ValidationError[]
+  _info: ValidationError[]
 ): number {
   let score = 100
   
@@ -638,7 +638,7 @@ function calculateQualityScore(
  * Get validation summary
  */
 export function getValidationSummary(result: ValidationResult): string {
-  const { errors, warnings, info, score } = result
+  const { errors, warnings, info: _info, score } = result
   
   if (errors.length === 0 && warnings.length === 0) {
     return `Workflow is valid (Score: ${score}/100)`
@@ -651,8 +651,8 @@ export function getValidationSummary(result: ValidationResult): string {
   if (warnings.length > 0) {
     parts.push(`${warnings.length} warning${warnings.length > 1 ? 's' : ''}`)
   }
-  if (info.length > 0) {
-    parts.push(`${info.length} info`)
+  if (_info.length > 0) {
+    parts.push(`${_info.length} info`)
   }
   
   return `${parts.join(', ')} (Score: ${score}/100)`

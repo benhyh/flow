@@ -1,8 +1,8 @@
 'use client'
 
 import React, { createContext, useContext, ReactNode } from 'react'
-import { useWorkflowExecution } from './useWorkflowExecution'
-import { type ExecutionRun } from './DebugPanel'
+import { useWorkflowExecution } from '../hooks/useWorkflowExecution'
+import { type ExecutionRun } from '../panels/DebugPanel'
 
 interface WorkflowExecutionContextType {
   executionRuns: ExecutionRun[]

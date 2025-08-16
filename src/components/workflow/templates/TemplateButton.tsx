@@ -7,7 +7,7 @@ import { TemplateGallery } from './TemplateGallery'
 import { useTemplates } from './useTemplates'
 import { type WorkflowTemplate } from './workflowTemplates'
 import { type Node, type Edge } from '@xyflow/react'
-import { type WorkflowState } from '../WorkflowToolbar'
+import { type WorkflowState } from '../toolbar/WorkflowToolbar'
 
 interface TemplateButtonProps {
   nodes: Node[]

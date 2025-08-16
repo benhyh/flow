@@ -4,7 +4,7 @@
  */
 
 import { type Node, type Edge } from '@xyflow/react'
-import { type WorkflowState } from './WorkflowToolbar'
+import { type WorkflowState } from '../toolbar/WorkflowToolbar'
 
 export interface WorkflowExportData {
   version: string

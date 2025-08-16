@@ -1,6 +1,6 @@
 import React from 'react'
 import { render, screen, fireEvent, act } from '@testing-library/react'
-import { ResponsiveLayout, useResponsive } from '../ResponsiveLayout'
+import { ResponsiveLayout, useResponsive } from '../canvas/ResponsiveLayout'
 
 // Mock window.innerWidth for responsive tests
 const mockInnerWidth = (width: number) => {

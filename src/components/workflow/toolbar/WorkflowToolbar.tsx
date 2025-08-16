@@ -14,7 +14,7 @@ import {
   Clock
 } from 'lucide-react'
 import { useReactFlow, type Node, type Edge } from '@xyflow/react'
-import { TemplateButton } from './templates/TemplateButton'
+import { TemplateButton } from '../templates/TemplateButton'
 
 // Workflow state types
 export type WorkflowStatus = 'draft' | 'active' | 'paused' | 'testing'

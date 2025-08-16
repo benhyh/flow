@@ -2,7 +2,7 @@
 
 import React from 'react'
 import { Handle, Position, type NodeProps } from '@xyflow/react'
-import { setConfiguredNode } from '../ConfigPanel'
+import { setConfiguredNode } from '../panels/ConfigPanel'
 
 export interface BaseNodeData {
   label: string

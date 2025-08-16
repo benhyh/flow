@@ -14,7 +14,7 @@ import {
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
-import { KeyboardShortcutsHelp } from './KeyboardShortcuts'
+import { KeyboardShortcutsHelp } from '../toolbar/KeyboardShortcuts'
 
 interface HelpSystemProps {
   className?: string

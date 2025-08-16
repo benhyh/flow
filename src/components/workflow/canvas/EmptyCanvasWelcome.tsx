@@ -4,12 +4,12 @@ import React, { useState } from 'react'
 import { Zap, BookOpen, Plus, ArrowRight } from 'lucide-react'
 
 import { Card } from '@/components/ui/card'
-import { TemplateGallery } from './templates/TemplateGallery'
+import { TemplateGallery } from '../templates/TemplateGallery'
 import {
   getFeaturedTemplates,
   type WorkflowTemplate,
-} from './templates/workflowTemplates'
-import { useTemplates } from './templates/useTemplates'
+} from '../templates/workflowTemplates'
+import { useTemplates } from '../templates/useTemplates'
 import { type Node, type Edge } from '@xyflow/react'
 
 interface EmptyCanvasWelcomeProps {

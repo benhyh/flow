@@ -144,7 +144,6 @@
   - _Requirements: 6.1, 6.2, 6.3, 6.4_
 
 - [x] 7. Frontend data management and state
-
   - Implement local storage for workflow persistence
   - Add workflow versioning and history
   - Create import/export functionality for workflows
@@ -152,7 +151,7 @@
   - Implement undo/redo functionality
   - _Requirements: 4.2, 4.3_
 
-- [ ] 8. Testing and quality assurance
+- [x] 8. Testing and quality assurance
   - Write comprehensive component tests for React Flow integration
   - Add end-to-end tests for workflow creation and editing
   - Implement visual regression testing

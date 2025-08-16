@@ -8,7 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { Separator } from '@/components/ui/separator'
+// import { Separator } from '@/components/ui/separator' // Unused
 import { 
   Search, 
   Plus, 
@@ -37,9 +37,9 @@ import {
   type StoredWorkflow,
   type WorkflowVersion
 } from '@/lib/workflow-storage'
-import { validateWorkflow, getValidationSummary, type ValidationResult } from './workflowValidation'
-import { exportWorkflow, downloadWorkflowFile, handleFileImport, type WorkflowExportData } from './workflowImportExport'
-import { type WorkflowState } from './WorkflowToolbar'
+import { validateWorkflow, getValidationSummary, type ValidationResult } from './utils/workflowValidation'
+import { exportWorkflow, downloadWorkflowFile, handleFileImport, type WorkflowExportData } from './utils/workflowImportExport'
+import { type WorkflowState } from './toolbar/WorkflowToolbar'
 import { toast } from 'sonner'
 
 interface WorkflowManagerProps {
@@ -52,9 +52,9 @@ interface WorkflowManagerProps {
 }
 
 export function WorkflowManager({
-  currentNodes,
-  currentEdges,
-  currentWorkflowState,
+  currentNodes: _currentNodes,
+  currentEdges: _currentEdges,
+  currentWorkflowState: _currentWorkflowState,
   onLoadWorkflow,
   onCreateNew,
   className = ''
