@@ -13,8 +13,8 @@ import {
   CheckCircle,
   Clock
 } from 'lucide-react'
-import { useReactFlow, type Node, type Edge } from '@xyflow/react'
-import { TemplateButton } from '../templates/TemplateButton'
+import { useReactFlow } from '@xyflow/react'
+
 
 // Workflow state types
 export type WorkflowStatus = 'draft' | 'active' | 'paused' | 'testing'
@@ -36,11 +36,7 @@ interface WorkflowToolbarProps {
   onRunTest: () => void
   onSave: () => void
   onToggleStatus: () => void
-  // Template integration props
-  nodes?: Node[]
-  edges?: Edge[]
-  onNodesChange?: (nodes: Node[]) => void
-  onEdgesChange?: (edges: Edge[]) => void
+
 }
 
 export function WorkflowToolbar({
@@ -48,11 +44,7 @@ export function WorkflowToolbar({
   onWorkflowStateChange,
   onRunTest,
   onSave,
-  onToggleStatus,
-  nodes = [],
-  edges = [],
-  onNodesChange,
-  onEdgesChange
+  onToggleStatus
 }: WorkflowToolbarProps) {
   const { getNodes, getEdges } = useReactFlow()
   const [isNameEditing, setIsNameEditing] = useState(false)
@@ -150,9 +142,9 @@ export function WorkflowToolbar({
       validationErrors: validation.errors 
     })
     
-    if (validation.isValid) {
-      onRunTest()
-    }
+    // Always call onRunTest for testing - let the execution manager handle validation
+    // This makes the button behave the same as the keyboard shortcut
+    onRunTest()
   }, [validateWorkflow, onWorkflowStateChange, onRunTest])
 
   // Handle save
@@ -267,19 +259,7 @@ export function WorkflowToolbar({
 
         {/* Right side - Action buttons */}
         <div className="flex items-center gap-2">
-          {/* Template button */}
-          {onNodesChange && onEdgesChange && (
-            <TemplateButton
-              nodes={nodes}
-              edges={edges}
-              onNodesChange={onNodesChange}
-              onEdgesChange={onEdgesChange}
-              onWorkflowStateChange={onWorkflowStateChange}
-              variant="secondary"
-              showLabel={true}
-              className="h-8"
-            />
-          )}
+
 
           {/* Run Test button */}
           <Button

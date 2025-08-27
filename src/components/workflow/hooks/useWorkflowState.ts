@@ -29,6 +29,7 @@ export function useWorkflowState(initialState?: Partial<WorkflowState>) {
       const id = `workflow_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
       setWorkflowState(prev => ({ ...prev, id }))
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []) // Empty dependency array to run only once
 
   // Update workflow state

@@ -52,3 +52,7 @@ next-env.d.ts
 # testing
 /flow-automation
 /docs
+context.md
+bugs.md
+TODO.md
+notes.md

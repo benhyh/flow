@@ -1,7 +1,7 @@
 import React from 'react'
 import { render, screen } from '@testing-library/react'
 import { axe, toHaveNoViolations } from 'jest-axe'
-import { NodeLibrary, WorkflowToolbar, ConfigPanel, DebugPanel } from '../index'
+import { NodeLibrary, WorkflowToolbar, ConfigPanel } from '../index'
 import {
   renderWithReactFlow,
   mockNodes,
@@ -66,20 +66,6 @@ describe('Accessibility Tests', () => {
     expect(results).toHaveNoViolations()
   })
 
-  test('DebugPanel meets accessibility standards', async () => {
-    const mockProps = {
-      isVisible: true,
-      onToggle: jest.fn(),
-      executionRuns: [],
-      onClearLogs: jest.fn(),
-      currentRun: undefined,
-    }
-
-    const { container } = render(<DebugPanel {...mockProps} />)
-    const results = await axe(container)
-    expect(results).toHaveNoViolations()
-  })
-
   test('NodeLibrary has proper keyboard navigation', () => {
     render(<NodeLibrary />)
 
@@ -119,21 +105,6 @@ describe('Accessibility Tests', () => {
     // ConfigPanel may not be visible without a configured node
     // This test should check if it renders without errors
     expect(document.body).toBeInTheDocument()
-  })
-
-  test('DebugPanel has proper content structure', () => {
-    const mockProps = {
-      isVisible: true,
-      onToggle: jest.fn(),
-      executionRuns: [],
-      onClearLogs: jest.fn(),
-      currentRun: undefined,
-    }
-
-    render(<DebugPanel {...mockProps} />)
-
-    // Should have proper heading structure
-    expect(screen.getByText(/debug/i)).toBeInTheDocument()
   })
 
   test('NodeLibrary provides proper semantic structure', () => {

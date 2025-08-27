@@ -3,14 +3,7 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { WorkflowToolbar, type WorkflowState } from '../toolbar/WorkflowToolbar'
 import { renderWithReactFlow, mockNodes, mockEdges } from '@/__tests__/utils/react-flow-test-utils'
 
-// Mock the template button component
-jest.mock('../templates/TemplateButton', () => ({
-  TemplateButton: ({ onLoadTemplate }: { onLoadTemplate: () => void }) => (
-    <button onClick={onLoadTemplate} data-testid="template-button">
-      Load Template
-    </button>
-  ),
-}))
+
 
 describe('WorkflowToolbar', () => {
   const mockWorkflowState: WorkflowState = {
@@ -28,10 +21,7 @@ describe('WorkflowToolbar', () => {
     onRunTest: jest.fn(),
     onSave: jest.fn(),
     onToggleStatus: jest.fn(),
-    nodes: mockNodes,
-    edges: mockEdges,
-    onNodesChange: jest.fn(),
-    onEdgesChange: jest.fn(),
+
   }
 
   beforeEach(() => {
@@ -203,23 +193,7 @@ describe('WorkflowToolbar', () => {
     expect(screen.getByText(/saved/i)).toBeInTheDocument()
   })
 
-  test('renders template button', () => {
-    renderWithReactFlow(<WorkflowToolbar {...mockProps} />)
-    
-    const templateButton = screen.getByTestId('template-button')
-    expect(templateButton).toBeInTheDocument()
-  })
 
-  test('handles template loading', () => {
-    renderWithReactFlow(<WorkflowToolbar {...mockProps} />)
-    
-    const templateButton = screen.getByTestId('template-button')
-    fireEvent.click(templateButton)
-    
-    // Template button should trigger node/edge changes
-    expect(mockProps.onNodesChange).toHaveBeenCalled()
-    expect(mockProps.onEdgesChange).toHaveBeenCalled()
-  })
 
   test('applies correct styling based on workflow status', () => {
     const { rerender } = renderWithReactFlow(<WorkflowToolbar {...mockProps} />)

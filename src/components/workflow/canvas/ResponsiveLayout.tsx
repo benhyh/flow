@@ -9,6 +9,7 @@ interface ResponsiveLayoutProps {
   sidebar: React.ReactNode
   toolbar: React.ReactNode
   debugPanel?: React.ReactNode
+  gmailPanel?: React.ReactNode
   className?: string
 }
 
@@ -17,6 +18,7 @@ export function ResponsiveLayout({
   sidebar,
   toolbar,
   debugPanel,
+  gmailPanel,
   className = ''
 }: ResponsiveLayoutProps) {
   const [isMobile, setIsMobile] = useState(false)
@@ -138,6 +140,13 @@ export function ResponsiveLayout({
           <div className="flex-1">
             {children}
           </div>
+
+          {/* Gmail panel */}
+          {gmailPanel && (
+            <div className="absolute top-4 right-4 z-20 w-80">
+              {gmailPanel}
+            </div>
+          )}
 
           {/* Debug panel */}
           {debugPanel && (

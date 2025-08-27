@@ -24,8 +24,7 @@ export { LogicNode } from './nodes/LogicNode'
 // Edge components
 export { CustomEdge } from './edges/CustomEdge'
 
-// Templates
-export * from './templates'
+
 
 // Hooks (with specific exports to avoid conflicts)
 export { 
@@ -37,6 +36,9 @@ export {
 } from './hooks'
 export type { WorkflowSnapshot } from './hooks'
 export type { NodeExecutionStatus } from './hooks/useWorkflowExecution'
+
+// Execution Manager
+export * from './execution'
 
 // Utils
 export * from './utils'

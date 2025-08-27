@@ -1,15 +1,10 @@
 'use client'
 
-import React, { useState } from 'react'
-import { Zap, BookOpen, Plus, ArrowRight } from 'lucide-react'
+import React from 'react'
+import { Zap, Plus, ArrowRight } from 'lucide-react'
 
 import { Card } from '@/components/ui/card'
-import { TemplateGallery } from '../templates/TemplateGallery'
-import {
-  getFeaturedTemplates,
-  type WorkflowTemplate,
-} from '../templates/workflowTemplates'
-import { useTemplates } from '../templates/useTemplates'
+
 import { type Node, type Edge } from '@xyflow/react'
 
 interface EmptyCanvasWelcomeProps {
@@ -20,28 +15,12 @@ interface EmptyCanvasWelcomeProps {
 }
 
 export function EmptyCanvasWelcome({
-  onNodesChange,
-  onEdgesChange,
-  onWorkflowStateChange,
+  onNodesChange: _onNodesChange,
+  onEdgesChange: _onEdgesChange,
+  onWorkflowStateChange: _onWorkflowStateChange,
   className = '',
 }: EmptyCanvasWelcomeProps) {
-  const [isGalleryOpen, setIsGalleryOpen] = useState(false)
-  const { loadTemplate } = useTemplates({
-    onNodesChange,
-    onEdgesChange,
-    onWorkflowStateChange,
-  })
 
-  const featuredTemplates = getFeaturedTemplates().slice(0, 3) // Show top 3 featured
-
-  const handleTemplateSelect = (template: WorkflowTemplate) => {
-    loadTemplate(template)
-    setIsGalleryOpen(false)
-  }
-
-  const handleQuickTemplate = (template: WorkflowTemplate) => {
-    loadTemplate(template)
-  }
 
   return (
     <>
@@ -63,29 +42,7 @@ export function EmptyCanvasWelcome({
           </div>
 
           {/* Quick Start Options */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
-            {/* Start from Template */}
-            <Card className="bg-[#2d2d2d] hover:bg-[#3d3d3d] transition-all duration-200 cursor-pointer group p-6">
-              <div onClick={() => setIsGalleryOpen(true)}>
-                <div className="flex items-center justify-center w-12 h-12 bg-[#8b5cf6]/20 rounded-lg mb-4 mx-auto group-hover:bg-[#8b5cf6]/30 transition-colors">
-                  <BookOpen size={24} className="text-[#8b5cf6]" />
-                </div>
-                <h3 className="text-lg font-semibold text-white mb-2 group-hover:text-[#8b5cf6] transition-colors">
-                  Start from Template
-                </h3>
-                <p className="text-white/50 text-sm mb-4">
-                  Choose from pre-built workflows and customize them to your
-                  needs
-                </p>
-                <div className="flex items-center justify-center text-[#8b5cf6] text-sm font-medium">
-                  Browse Templates
-                  <ArrowRight
-                    size={16}
-                    className="ml-1 group-hover:translate-x-1 transition-transform"
-                  />
-                </div>
-              </div>
-            </Card>
+          <div className="grid grid-cols-1 gap-4 mb-8">
 
             {/* Start from Scratch */}
             <Card className="bg-[#2d2d2d] hover:bg-[#3d3d3d] transition-all duration-200 cursor-pointer group p-6">
@@ -111,46 +68,11 @@ export function EmptyCanvasWelcome({
             </Card>
           </div>
 
-          {/* Featured Templates Quick Access */}
-          <div className="mb-8">
-            <h3 className="text-lg font-semibold text-white mb-4">
-              Popular Templates
-            </h3>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-              {featuredTemplates.map(template => (
-                <Card
-                  key={template.id}
-                  className="bg-[#2d2d2d] hover:bg-[#3d3d3d] transition-all duration-200 cursor-pointer group p-4"
-                  onClick={() => handleQuickTemplate(template)}
-                >
-                  <div className="flex items-center mb-2">
-                    <span className="text-lg mr-2">{template.icon}</span>
-                    <h4 className="font-medium text-white text-sm group-hover:text-[#8b5cf6] transition-colors">
-                      {template.name}
-                    </h4>
-                  </div>
-                  <p className="text-xs text-white/50 mb-2 line-clamp-2">
-                    {template.description}
-                  </p>
-                  <div className="flex items-center justify-between text-xs text-gray-500">
-                    <span>{template.estimatedSetupTime}</span>
-                    <span className="text-[#8b5cf6]">
-                      {template.difficulty}
-                    </span>
-                  </div>
-                </Card>
-              ))}
-            </div>
-          </div>
+
         </div>
       </div>
 
-      {/* Template Gallery Modal */}
-      <TemplateGallery
-        isOpen={isGalleryOpen}
-        onClose={() => setIsGalleryOpen(false)}
-        onSelectTemplate={handleTemplateSelect}
-      />
+
     </>
   )
 }
