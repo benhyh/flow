@@ -312,28 +312,29 @@ function validateAsanaActionConfig(
   warnings: ValidationError[],
   _info: ValidationError[]
 ): void {
-  if (!config.project) {
+  // Check for task name template (required)
+  if (!config.taskName) {
     errors.push({
-      id: `asana-project-${node.id}`,
+      id: `asana-task-name-${node.id}`,
       type: 'error',
-      category: 'configuration',
-      message: `Asana action "${node.data.label}" has no project selected`,
-      nodeId: node.id,
-      severity: 'high',
-      suggestion: 'Select an Asana project for task creation'
-    })
-  }
-
-  const taskTemplate = config.taskTemplate as Record<string, unknown>
-  if (!taskTemplate || !taskTemplate.name) {
-    warnings.push({
-      id: `asana-template-${node.id}`,
-      type: 'warning',
       category: 'configuration',
       message: `Asana action "${node.data.label}" has no task name template`,
       nodeId: node.id,
-      severity: 'medium',
-      suggestion: 'Configure a name template for created tasks'
+      severity: 'high',
+      suggestion: 'Configure a task name template for created tasks'
+    })
+  }
+
+  // Warn if no project is selected (optional but helpful)
+  if (!config.projectId) {
+    warnings.push({
+      id: `asana-project-${node.id}`,
+      type: 'warning',
+      category: 'configuration',
+      message: `Asana action "${node.data.label}" has no project selected`,
+      nodeId: node.id,
+      severity: 'low',
+      suggestion: 'Consider selecting a project, or tasks will be created in the main dashboard'
     })
   }
 }

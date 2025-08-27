@@ -32,17 +32,17 @@ export function TriggerNode(props: NodeProps) {
         {nodeData.config?.emailFilters && (
           <div className="space-y-1">
             {nodeData.config.emailFilters.sender && (
-              <div className="text-xs text-gray-300">
+              <div className="text-xs text-gray-300 truncate">
                 <span className="text-gray-500">From:</span> {nodeData.config.emailFilters.sender}
               </div>
             )}
             {nodeData.config.emailFilters.subject && (
-              <div className="text-xs text-gray-300">
+              <div className="text-xs text-gray-300 truncate">
                 <span className="text-gray-500">Subject:</span> {nodeData.config.emailFilters.subject}
               </div>
             )}
             {nodeData.config.emailFilters.keywords && nodeData.config.emailFilters.keywords.length > 0 && (
-              <div className="text-xs text-gray-300">
+              <div className="text-xs text-gray-300 truncate">
                 <span className="text-gray-500">Keywords:</span> {nodeData.config.emailFilters.keywords.join(', ')}
               </div>
             )}

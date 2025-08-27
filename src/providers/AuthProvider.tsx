@@ -348,7 +348,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           queryParams: {
             access_type: 'offline',
             prompt: 'consent',
-            scope: 'openid email profile https://www.googleapis.com/auth/gmail.metadata'
+            scope: 'openid email profile https://www.googleapis.com/auth/gmail.readonly'
           },
           skipBrowserRedirect: true, // This prevents the redirect and gives us the URL
         },

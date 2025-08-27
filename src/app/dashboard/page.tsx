@@ -30,20 +30,19 @@ import {
   useConnectionFeedback,
   WorkflowToolbar,
   useWorkflowState,
-  DebugPanel,
-  WorkflowExecutionProvider,
-  useWorkflowExecutionContext,
   EmptyCanvasWelcome,
   ResponsiveLayout,
   AdvancedCanvasControls,
   KeyboardShortcuts,
-  HelpSystem,
   useUndoRedo,
   useAutoSnapshot,
   useUndoRedoKeyboard,
   WorkflowManager,
   ValidationPanel,
+  WorkflowExecutionWrapper,
 } from '@/components/workflow'
+import { AuthenticationMonitor } from '@/components/workflow/AuthenticationMonitor'
+
 import { Button } from '@/components/ui/button'
 import { Undo, Redo, Save } from 'lucide-react'
 
@@ -72,11 +71,9 @@ export default function Dashboard() {
     name: 'Untitled Workflow',
   })
 
-  const { executionRuns, currentRun, executeWorkflow, clearLogs, isExecuting } =
-    useWorkflowExecutionContext()
-
-  const [debugPanelVisible, setDebugPanelVisible] = useState(false)
+  // Will be provided by WorkflowExecutionWrapper inside ReactFlowProvider
   const [validationPanelVisible, setValidationPanelVisible] = useState(false)
+
   const [nodes, setNodes] = useState<Node[]>(initialNodes)
   const [edges, setEdges] = useState<Edge[]>(initialEdges)
 
@@ -125,7 +122,7 @@ export default function Dashboard() {
     }
   }, [nodes, edges, handleAutoSave, validateCurrentWorkflow])
 
-  // Create serializable wrapper functions for template system
+  // Create serializable wrapper functions
   const handleNodesChange = useCallback(
     (newNodes: Node[]) => {
       setNodes(newNodes)
@@ -296,8 +293,9 @@ export default function Dashboard() {
 
   return (
     <ReactFlowProvider>
-      <WorkflowExecutionProvider>
-        <ResponsiveLayout
+      <WorkflowExecutionWrapper>
+        {({ executeWorkflow, isExecuting }) => (
+          <ResponsiveLayout
           toolbar={
             <WorkflowToolbar
               workflowState={{
@@ -308,25 +306,16 @@ export default function Dashboard() {
               onRunTest={executeWorkflow}
               onSave={() => handleSave(nodes, edges)}
               onToggleStatus={handleToggleStatus}
-              nodes={nodes}
-              edges={edges}
-              onNodesChange={handleNodesChange}
-              onEdgesChange={handleEdgesChange}
             />
           }
           sidebar={<NodeLibrary />}
-          debugPanel={
-            <DebugPanel
-              isVisible={debugPanelVisible}
-              onToggle={() => setDebugPanelVisible(!debugPanelVisible)}
-              executionRuns={executionRuns}
-              currentRun={currentRun || undefined}
-              onClearLogs={clearLogs}
-            />
-          }
+          debugPanel={null}
+          gmailPanel={null}
         >
           {/* Header with user info, controls, and logout */}
           <div className="absolute top-4 right-4 z-10 flex items-center gap-2">
+
+
             {/* Undo/Redo Controls */}
             <div className="flex items-center gap-1 bg-background/80 backdrop-blur-sm rounded-lg p-1 border">
               <Button
@@ -459,8 +448,7 @@ export default function Dashboard() {
             onRunTest={executeWorkflow}
           />
 
-          {/* Help System */}
-          <HelpSystem />
+
 
           {/* Validation Panel */}
           <ValidationPanel
@@ -482,8 +470,12 @@ export default function Dashboard() {
               onClose={clearFeedback}
             />
           )}
-        </ResponsiveLayout>
-      </WorkflowExecutionProvider>
+          
+          {/* Authentication Monitor */}
+          <AuthenticationMonitor />
+          </ResponsiveLayout>
+        )}
+      </WorkflowExecutionWrapper>
     </ReactFlowProvider>
   )
 }

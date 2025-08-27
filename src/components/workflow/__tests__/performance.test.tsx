@@ -364,7 +364,7 @@ describe('Performance Tests', () => {
       NodeLibrary: 15, // KB (estimated)
       WorkflowToolbar: 12, // KB (estimated)
       ConfigPanel: 18, // KB (estimated)
-      DebugPanel: 10, // KB (estimated)
+
     }
     
     const totalSize = Object.values(componentSizes).reduce((sum, size) => sum + size, 0)

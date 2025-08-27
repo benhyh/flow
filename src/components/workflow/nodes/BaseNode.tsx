@@ -1,7 +1,8 @@
 'use client'
 
-import React from 'react'
-import { Handle, Position, type NodeProps } from '@xyflow/react'
+import React, { useState } from 'react'
+import { Handle, Position, type NodeProps, useReactFlow } from '@xyflow/react'
+import { X } from 'lucide-react'
 import { setConfiguredNode } from '../panels/ConfigPanel'
 
 export interface BaseNodeData {
@@ -34,6 +35,8 @@ export function BaseNode({
 }: BaseNodeProps) {
   // Type assertion to ensure data has the expected properties
   const nodeData = data as unknown as BaseNodeData
+  const { deleteElements } = useReactFlow()
+  const [isHovered, setIsHovered] = useState(false)
   const getStatusColor = () => {
     switch (nodeData.status) {
       case 'running':
@@ -60,6 +63,13 @@ export function BaseNode({
     }
   }
 
+  const handleDelete = (e: React.MouseEvent) => {
+    e.stopPropagation() // Prevent triggering other node events
+    if (id) {
+      deleteElements({ nodes: [{ id }] })
+    }
+  }
+
   return (
     <div 
       className={`
@@ -70,7 +80,20 @@ export function BaseNode({
         shadow-lg hover:shadow-xl
       `}
       onDoubleClick={handleDoubleClick}
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
     >
+      {/* Delete Button - Top Right Corner */}
+      {isHovered && (
+        <button
+          onClick={handleDelete}
+          className="absolute -top-2 -right-2 w-6 h-6 bg-[#8b5cf6] hover:bg-[#7c3aed] rounded-full flex items-center justify-center transition-all duration-200 z-10 shadow-lg hover:shadow-xl"
+          title="Delete node"
+        >
+          <X size={12} className="text-white" />
+        </button>
+      )}
+
       {/* Target Handle (Input) */}
       {showTargetHandle && (
         <Handle

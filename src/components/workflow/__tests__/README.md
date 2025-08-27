@@ -8,7 +8,7 @@ This directory contains comprehensive tests for the React Flow-based workflow ed
 - **NodeLibrary.test.tsx** - Tests for the draggable node library sidebar
 - **WorkflowToolbar.test.tsx** - Tests for workflow controls and state management
 - **ConfigPanel.test.tsx** - Tests for node configuration modal
-- **DebugPanel.test.tsx** - Tests for execution debugging and logs
+
 - **connectionValidation.test.ts** - Tests for edge connection validation logic
 - **workflowValidation.test.ts** - Tests for workflow structure validation
 - **useWorkflowExecution.test.ts** - Tests for workflow execution hook

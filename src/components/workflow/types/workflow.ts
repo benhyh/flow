@@ -12,11 +12,12 @@ export interface FlowNode extends Node {
   data: {
     label: string
     icon: string
-    config: Record<string, any>
+    config: Record<string, unknown>
     status?: 'idle' | 'running' | 'success' | 'error'
   }
 }
 
 export interface FlowEdge extends Edge {
-  // Add custom edge properties if needed
+  animated?: boolean
+  style?: Record<string, unknown>
 }

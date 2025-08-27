@@ -1,6 +1,8 @@
-import { useState, useCallback, useRef } from 'react'
+import { useState, useCallback } from 'react'
 import { useReactFlow, type Node, type Edge } from '@xyflow/react'
-import { type ExecutionLog, type ExecutionRun, type LogLevel } from '../panels/DebugPanel'
+import { useGmailIntegration, type GmailExecutionResult } from './useGmailIntegration'
+import { useTrelloIntegration, type TrelloExecutionResult } from './useTrelloIntegration'
+import { toast } from 'sonner'
 
 // Node execution status
 export type NodeExecutionStatus = 'idle' | 'running' | 'success' | 'error'
@@ -16,29 +18,11 @@ export interface NodeExecutionState {
 
 export function useWorkflowExecution() {
   const { getNodes, getEdges, setNodes } = useReactFlow()
-  const [executionRuns, setExecutionRuns] = useState<ExecutionRun[]>([])
-  const [currentRun, setCurrentRun] = useState<ExecutionRun | null>(null)
+  const { executeGmailTrigger, hasGmailAccess } = useGmailIntegration()
+  const { createTrelloCard, hasTrelloAccess, generateTrelloAuthUrl } = useTrelloIntegration()
   const [nodeExecutionState, setNodeExecutionState] = useState<NodeExecutionState>({})
-  const executionTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
-  // Create a new execution log
-  const createLog = useCallback((
-    level: LogLevel,
-    message: string,
-    nodeId?: string,
-    nodeName?: string,
-    details?: string,
-    duration?: number
-  ): ExecutionLog => ({
-    id: `log-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-    timestamp: new Date(),
-    level,
-    message,
-    nodeId,
-    nodeName,
-    details,
-    duration
-  }), [])
+
 
   // Update node visual status
   const updateNodeStatus = useCallback((nodeId: string, status: NodeExecutionStatus, error?: string) => {
@@ -69,18 +53,193 @@ export function useWorkflowExecution() {
     }))
   }, [setNodes])
 
-  // Add log to current run
-  const addLog = useCallback((log: ExecutionLog) => {
-    setCurrentRun((prev: ExecutionRun | null) => {
-      if (!prev) return prev
-      return {
-        ...prev,
-        logs: [...prev.logs, log]
-      }
+  // Check if workspace has nodes requiring authentication
+  const checkAuthenticationRequirements = useCallback(() => {
+    const nodes = getNodes()
+    const requiresTrello = nodes.some(node => {
+      const nodeData = node.data as Record<string, unknown>
+      const nodeType = (nodeData.nodeType as string) || node.type || 'default'
+      return nodeType === 'trello-action'
     })
-  }, [])
 
-  // Simulate node execution
+    return { requiresTrello }
+  }, [getNodes])
+
+  // Show authentication toast notifications
+  const showAuthToast = useCallback(async (service: 'trello') => {
+    if (service === 'trello') {
+      try {
+        const authUrl = await generateTrelloAuthUrl()
+        toast.error('Trello Authorization Required', {
+          description: 'Click to authorize Trello integration for your workflow',
+          duration: 10000,
+          action: {
+            label: 'Authorize Trello',
+            onClick: () => {
+              window.open(authUrl, '_blank')
+            }
+          }
+        })
+      } catch {
+        toast.error('Trello Authorization Error', {
+          description: 'Failed to generate Trello authorization URL',
+          duration: 5000
+        })
+      }
+    }
+  }, [generateTrelloAuthUrl])
+
+  // Execute Trello action node
+  const executeTrelloActionNode = useCallback(async (
+    node: Node
+  ): Promise<{ success: boolean; duration: number; error?: string; data?: TrelloExecutionResult }> => {
+    const startTime = Date.now()
+    console.log(`[WORKFLOW DEBUG] Starting Trello action execution for node:`, node.id)
+    
+    const nodeData = node.data as Record<string, unknown>
+    console.log(`[WORKFLOW DEBUG] Node data:`, nodeData)
+    
+    const config = nodeData.config as Record<string, unknown> | undefined
+    console.log(`[WORKFLOW DEBUG] Node config:`, config)
+    
+    // CHECK 1: Configuration validation
+    if (!config?.boardId) {
+      console.error(`[WORKFLOW DEBUG] EARLY EXIT: No boardId in config`)
+      return {
+        success: false,
+        duration: Date.now() - startTime,
+        error: 'Trello Board ID is required. Please configure the node with a valid Board ID.'
+      }
+    }
+
+    if (!config?.cardTitle) {
+      console.error(`[WORKFLOW DEBUG] EARLY EXIT: No cardTitle in config`)
+      return {
+        success: false,
+        duration: Date.now() - startTime,
+        error: 'Card title is required. Please configure the node with a card title template.'
+      }
+    }
+
+    // CHECK 2: Trello access validation
+    console.log(`[WORKFLOW DEBUG] Checking Trello access... hasTrelloAccess:`, hasTrelloAccess)
+    if (!hasTrelloAccess) {
+      console.error(`[WORKFLOW DEBUG] EARLY EXIT: No Trello access`)
+      return {
+        success: false,
+        duration: Date.now() - startTime,
+        error: 'Trello access not available. Please authorize Trello integration.'
+      }
+    }
+
+    try {
+      console.log(`[WORKFLOW DEBUG] Creating Trello card...`)
+      
+      // Prepare card data
+      const cardData = {
+        name: config.cardTitle as string,
+        desc: config.cardDescription as string || '',
+        idList: config.listId as string || config.boardId as string, // Use listId if available, fallback to boardId
+        pos: 'top' as const
+      }
+
+      console.log(`[WORKFLOW DEBUG] Card data:`, cardData)
+
+      const result = await createTrelloCard(cardData)
+      console.log(`[WORKFLOW DEBUG] Trello card creation result:`, result)
+      
+      return {
+        success: result.success,
+        duration: result.duration,
+        error: result.error,
+        data: result
+      }
+    } catch (error) {
+      console.error(`[WORKFLOW DEBUG] Trello action threw exception:`, error)
+      return {
+        success: false,
+        duration: Date.now() - startTime,
+        error: error instanceof Error ? error.message : 'Trello card creation failed'
+      }
+    }
+  }, [createTrelloCard, hasTrelloAccess])
+
+  // Execute Gmail trigger node with real Gmail API
+  const executeGmailTriggerNode = useCallback(async (
+    node: Node
+  ): Promise<{ success: boolean; duration: number; error?: string; data?: GmailExecutionResult }> => {
+    const startTime = Date.now()
+    console.log(`[WORKFLOW DEBUG] Starting Gmail trigger execution for node:`, node.id)
+    
+    const nodeData = node.data as Record<string, unknown>
+    console.log(`[WORKFLOW DEBUG] Node data:`, nodeData)
+    
+    const config = nodeData.config as Record<string, unknown> | undefined
+    console.log(`[WORKFLOW DEBUG] Node config:`, config)
+    
+    // CHECK 1: Configuration validation
+    if (!config?.emailFilters) {
+      console.error(`[WORKFLOW DEBUG] EARLY EXIT: No emailFilters in config`)
+      console.error(`[WORKFLOW DEBUG] Config structure:`, JSON.stringify(config, null, 2))
+      return {
+        success: false,
+        duration: Date.now() - startTime,
+        error: 'Gmail trigger not configured. Please set sender, subject, or keywords.'
+      }
+    }
+
+    console.log(`[WORKFLOW DEBUG] Email filters found:`, config.emailFilters)
+
+    // CHECK 2: Gmail access validation
+    console.log(`[WORKFLOW DEBUG] Checking Gmail access... hasGmailAccess:`, hasGmailAccess)
+    if (!hasGmailAccess) {
+      console.error(`[WORKFLOW DEBUG] EARLY EXIT: No Gmail access`)
+      return {
+        success: false,
+        duration: Date.now() - startTime,
+        error: 'Gmail access not available. Please sign in with Google.'
+      }
+    }
+
+    const emailFilters = config.emailFilters as {
+      sender?: string
+      subject?: string
+      keywords?: string[]
+    }
+
+    console.log(`[WORKFLOW DEBUG] Email filters parsed:`, emailFilters)
+
+    // Convert to EmailTriggerConfig format
+    const triggerConfig = {
+      senderFilter: emailFilters.sender,
+      subjectContains: emailFilters.subject,
+      keywords: emailFilters.keywords
+    }
+
+    console.log(`[WORKFLOW DEBUG] Trigger config created:`, triggerConfig)
+
+    try {
+      console.log(`[WORKFLOW DEBUG] Calling executeGmailTrigger...`)
+      const result = await executeGmailTrigger(triggerConfig)
+      console.log(`[WORKFLOW DEBUG] Gmail trigger result:`, result)
+      
+      return {
+        success: result.success,
+        duration: result.duration,
+        error: result.error,
+        data: result
+      }
+    } catch (error) {
+      console.error(`[WORKFLOW DEBUG] Gmail trigger threw exception:`, error)
+      return {
+        success: false,
+        duration: Date.now() - startTime,
+        error: error instanceof Error ? error.message : 'Gmail execution failed'
+      }
+    }
+  }, [executeGmailTrigger, hasGmailAccess])
+
+  // Simulate node execution for non-Gmail nodes
   const simulateNodeExecution = useCallback(async (
     node: Node
   ): Promise<{ success: boolean; duration: number; error?: string }> => {
@@ -140,35 +299,57 @@ export function useWorkflowExecution() {
     return { success: true, duration }
   }, [])
 
+  // Execute node (real execution for Gmail triggers and Trello actions, simulation for others)
+  const executeNode = useCallback(async (
+    node: Node
+  ): Promise<{ success: boolean; duration: number; error?: string; data?: unknown }> => {
+    const nodeData = node.data as Record<string, unknown>
+    const nodeType = (nodeData.nodeType as string) || node.type || 'default'
+    
+    // Handle Gmail trigger nodes with real execution
+    if (nodeType === 'email-trigger') {
+      return await executeGmailTriggerNode(node)
+    }
+    
+    // Handle Trello action nodes with real execution
+    if (nodeType === 'trello-action') {
+      return await executeTrelloActionNode(node)
+    }
+    
+    // Simulate other node types
+    return await simulateNodeExecution(node)
+  }, [executeGmailTriggerNode, executeTrelloActionNode, simulateNodeExecution])
+
   // Execute workflow simulation
   const executeWorkflow = useCallback(async () => {
+    console.log(`[WORKFLOW DEBUG] ========== STARTING WORKFLOW EXECUTION ==========`)
+    
     const nodes = getNodes()
     const edges = getEdges()
 
+    console.log(`[WORKFLOW DEBUG] Found ${nodes.length} nodes:`, nodes.map(n => ({id: n.id, type: n.type, nodeType: n.data?.nodeType})))
+    console.log(`[WORKFLOW DEBUG] Found ${edges.length} edges:`, edges)
+
     if (nodes.length === 0) {
+      console.log('[Workflow] No nodes to execute')
+      toast.info('No nodes to execute', { description: 'Add some nodes to your workflow first' })
       return
     }
 
-    // Create new execution run
-    const runId = `run-${Date.now()}`
-    const newRun: ExecutionRun = {
-      id: runId,
-      startTime: new Date(),
-      status: 'running',
-      logs: [],
-      totalNodes: nodes.length,
-      completedNodes: 0,
-      errorCount: 0
+    // Check authentication requirements before execution
+    const { requiresTrello } = checkAuthenticationRequirements()
+    
+    if (requiresTrello && !hasTrelloAccess) {
+      console.log('[WORKFLOW DEBUG] Trello authentication required but not available')
+      await showAuthToast('trello')
+      return
     }
 
-    setCurrentRun(newRun)
-    
-    // Add initial log
-    const startLog = createLog('info', `Starting workflow execution with ${nodes.length} nodes`)
-    addLog(startLog)
+    console.log(`[Workflow] Starting execution with ${nodes.length} nodes`)
 
     // Reset all node statuses
     nodes.forEach(node => {
+      console.log(`[WORKFLOW DEBUG] Resetting node ${node.id} to idle`)
       updateNodeStatus(node.id, 'idle')
     })
 
@@ -198,7 +379,7 @@ export function useWorkflowExecution() {
           queue.push(node)
         }
       })
-      
+
       const result: Node[] = []
       
       while (queue.length > 0) {
@@ -230,67 +411,107 @@ export function useWorkflowExecution() {
     for (const node of executionOrder) {
       const nodeData = node.data as Record<string, unknown>
       const nodeName = nodeData.label as string || node.id
+      const nodeType = (nodeData.nodeType as string) || node.type || 'default'
+      
+      console.log(`[WORKFLOW DEBUG] ========== EXECUTING NODE ==========`)
+      console.log(`[WORKFLOW DEBUG] Node ID: ${node.id}`)
+      console.log(`[WORKFLOW DEBUG] Node Name: ${nodeName}`)
+      console.log(`[WORKFLOW DEBUG] Node Type: ${nodeType}`)
+      console.log(`[WORKFLOW DEBUG] Node Data:`, nodeData)
       
       // Start node execution
+      console.log(`[WORKFLOW DEBUG] Setting node ${node.id} status to 'running'`)
       updateNodeStatus(node.id, 'running')
-      addLog(createLog('info', `Executing node: ${nodeName}`, node.id, nodeName))
+      console.log(`[Workflow] Executing node: ${nodeName} (${nodeType})`)
       
       try {
-        const result = await simulateNodeExecution(node)
+        console.log(`[WORKFLOW DEBUG] Calling executeNode...`)
+        const result = await executeNode(node)
+        console.log(`[WORKFLOW DEBUG] executeNode result:`, result)
         
         if (result.success) {
+          console.log(`[WORKFLOW DEBUG] Node succeeded - setting status to 'success'`)
           updateNodeStatus(node.id, 'success')
-          addLog(createLog(
-            'success', 
-            `Node completed successfully`, 
-            node.id, 
-            nodeName,
-            `Execution completed in ${result.duration.toFixed(0)}ms`,
-            result.duration
-          ))
+          
+          // Add detailed logging for Gmail triggers
+          if (nodeType === 'email-trigger' && result.data) {
+            const gmailResult = result.data as GmailExecutionResult
+            const emailCount = gmailResult.emailCount || 0
+            const processedEmails = gmailResult.processedEmails || []
+            
+            console.log(`[Workflow] Gmail trigger found ${emailCount} matching emails`)
+            if (emailCount > 0) {
+              console.log('[Workflow] Processed emails with categories:', processedEmails.map(email => `${email.extractedInfo.category} (${email.extractedInfo.priority})`))
+              toast.success(`📧 Gmail Trigger: Found ${emailCount} matching emails`, {
+                description: `Processed emails: ${processedEmails.slice(0, 3).map(email => email.extractedInfo.category).join(', ')}${emailCount > 3 ? ` and ${emailCount - 3} more...` : ''}`,
+                duration: 5000
+              })
+            } else {
+              toast.info('📧 Gmail Trigger: No matching emails found', {
+                description: 'No emails matched your filter criteria (sender, subject, keywords)',
+                duration: 4000
+              })
+            }
+          } else if (nodeType === 'trello-action' && result.data) {
+            // Add detailed logging for Trello actions
+            const trelloResult = result.data as TrelloExecutionResult
+            console.log(`[Workflow] Trello card created: ${trelloResult.cardName}`)
+            
+            toast.success(`🗂️ Trello Card Created`, {
+              description: `"${trelloResult.cardName}" was added to your board`,
+              duration: 5000,
+              action: trelloResult.cardUrl ? {
+                label: 'View Card',
+                onClick: () => {
+                  window.open(trelloResult.cardUrl, '_blank')
+                }
+              } : undefined
+            })
+          } else {
+            console.log(`[Workflow] Node ${nodeName} completed successfully`)
+            toast.success(`✅ Node: ${nodeName} completed`, { duration: 2000 })
+          }
           completedNodes++
         } else {
+          console.error(`[WORKFLOW DEBUG] Node failed - setting status to 'error'`)
+          console.error(`[WORKFLOW DEBUG] Error details:`, result.error)
           updateNodeStatus(node.id, 'error', result.error)
-          addLog(createLog(
-            'error', 
-            `Node execution failed: ${result.error}`, 
-            node.id, 
-            nodeName,
-            `Failed after ${result.duration.toFixed(0)}ms`,
-            result.duration
-          ))
+          console.error(`[Workflow] Node execution failed: ${result.error}`)
           errorCount++
           
+          // Handle specific error types with appropriate toast notifications
+          if (result.error?.includes('Trello access not available')) {
+            await showAuthToast('trello')
+          } else if (result.error?.includes('Board ID is required')) {
+            toast.error(`❌ Node: ${nodeName} configuration error`, { 
+              description: 'Trello Board ID is required. Please configure the node.',
+              duration: 6000
+            })
+          } else {
+            toast.error(`❌ Node: ${nodeName} failed`, { 
+              description: result.error, 
+              duration: 4000 
+            })
+          }
+          
           // Stop execution on error (you could make this configurable)
+          console.log(`[WORKFLOW DEBUG] Stopping execution due to error`)
           break
         }
-      } catch {
-        updateNodeStatus(node.id, 'error', 'Unexpected error')
-        addLog(createLog('error', `Unexpected error in node: ${nodeName}`, node.id, nodeName))
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Unexpected error'
+        console.error(`[WORKFLOW DEBUG] Exception during node execution:`, error)
+        console.error(`[WORKFLOW DEBUG] Setting node status to 'error' with message:`, errorMessage)
+        updateNodeStatus(node.id, 'error', errorMessage)
+        console.error(`[Workflow] Unexpected error in node: ${nodeName} - ${errorMessage}`)
         errorCount++
+        console.log(`[WORKFLOW DEBUG] Stopping execution due to exception`)
         break
       }
     }
 
-    // Complete execution
-    const finalStatus: ExecutionRun['status'] = errorCount > 0 ? 'error' : 'success'
-    const endTime = new Date()
-    
-    const finalRun: ExecutionRun = {
-      ...newRun,
-      endTime,
-      status: finalStatus,
-      completedNodes,
-      errorCount
-    }
-
-    setCurrentRun(finalRun)
-    setExecutionRuns(prev => [finalRun, ...prev.slice(0, 9)]) // Keep last 10 runs
-    
-    addLog(createLog(
-      finalStatus === 'success' ? 'success' : 'error',
-      `Workflow execution ${finalStatus}. Completed ${completedNodes}/${nodes.length} nodes${errorCount > 0 ? ` with ${errorCount} errors` : ''}`
-    ))
+    const finalStatus = errorCount > 0 ? 'error' : 'success'
+    console.log(`[Workflow] Execution ${finalStatus}. Completed ${completedNodes}/${nodes.length} nodes${errorCount > 0 ? ` with ${errorCount} errors` : ''}`)
 
     // Reset node statuses after a delay
     setTimeout(() => {
@@ -299,42 +520,13 @@ export function useWorkflowExecution() {
       })
     }, 3000)
 
-  }, [getNodes, getEdges, createLog, addLog, updateNodeStatus, simulateNodeExecution])
-
-  // Clear execution logs
-  const clearLogs = useCallback(() => {
-    setExecutionRuns([])
-    setCurrentRun(null)
-    setNodeExecutionState({})
-  }, [])
-
-  // Cancel current execution
-  const cancelExecution = useCallback(() => {
-    if (executionTimeoutRef.current) {
-      clearTimeout(executionTimeoutRef.current)
-    }
-    
-    if (currentRun && currentRun.status === 'running') {
-      const cancelledRun: ExecutionRun = {
-        ...currentRun,
-        endTime: new Date(),
-        status: 'cancelled'
-      }
-      
-      setCurrentRun(cancelledRun)
-      setExecutionRuns(prev => [cancelledRun, ...prev.slice(0, 9)])
-      
-      addLog(createLog('warning', 'Workflow execution cancelled by user'))
-    }
-  }, [currentRun, addLog, createLog])
+  }, [getNodes, getEdges, updateNodeStatus, executeNode, checkAuthenticationRequirements, showAuthToast, hasTrelloAccess])
 
   return {
-    executionRuns,
-    currentRun,
     nodeExecutionState,
     executeWorkflow,
-    clearLogs,
-    cancelExecution,
-    isExecuting: currentRun?.status === 'running'
+    checkAuthenticationRequirements,
+    showAuthToast,
+    isExecuting: false
   }
 }
