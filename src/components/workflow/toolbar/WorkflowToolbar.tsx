@@ -5,13 +5,11 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { 
   Play, 
-  Save, 
   Power, 
   PowerOff, 
-  Pause, 
-  AlertTriangle,
-  CheckCircle,
-  Clock
+  Pause,
+  FileText,
+  Save
 } from 'lucide-react'
 import { useReactFlow } from '@xyflow/react'
 
@@ -36,7 +34,7 @@ interface WorkflowToolbarProps {
   onRunTest: () => void
   onSave: () => void
   onToggleStatus: () => void
-
+  onManageWorkflows: () => void
 }
 
 export function WorkflowToolbar({
@@ -44,7 +42,8 @@ export function WorkflowToolbar({
   onWorkflowStateChange,
   onRunTest,
   onSave,
-  onToggleStatus
+  onToggleStatus,
+  onManageWorkflows
 }: WorkflowToolbarProps) {
   const { getNodes, getEdges } = useReactFlow()
   const [isNameEditing, setIsNameEditing] = useState(false)
@@ -173,44 +172,14 @@ export function WorkflowToolbar({
     onToggleStatus()
   }, [validateWorkflow, workflowState.status, onWorkflowStateChange, onToggleStatus])
 
-  // Get status display info
-  const getStatusInfo = () => {
-    switch (workflowState.status) {
-      case 'active':
-        return {
-          icon: <Power size={16} className="text-green-500" />,
-          text: 'Active',
-          color: 'text-green-500'
-        }
-      case 'paused':
-        return {
-          icon: <Pause size={16} className="text-yellow-500" />,
-          text: 'Paused',
-          color: 'text-yellow-500'
-        }
-      case 'testing':
-        return {
-          icon: <Clock size={16} className="text-blue-500" />,
-          text: 'Testing',
-          color: 'text-blue-500'
-        }
-      default:
-        return {
-          icon: <PowerOff size={16} className="text-white/20" />,
-          text: 'Draft',
-          color: 'text-white/20'
-        }
-    }
-  }
 
-  const statusInfo = getStatusInfo()
   const canActivate = workflowState.status === 'draft' || workflowState.status === 'paused'
 
   return (
     <div className="bg-[#2d2d2d] px-4 py-3">
       <div className="flex items-center justify-between">
-        {/* Left side - Workflow name and status */}
-        <div className="flex items-center gap-4">
+        {/* Left side - Workflow name and buttons */}
+        <div className="flex items-center gap-2">
           {/* Workflow name */}
           <div className="flex items-center gap-2">
             {isNameEditing ? (
@@ -232,53 +201,41 @@ export function WorkflowToolbar({
               </h1>
             )}
           </div>
-
-          {/* Status indicator */}
-          <div className="flex items-center gap-2">
-            {statusInfo.icon}
-            <span className={`text-sm text-white/20 font-medium`}>
-              {statusInfo.text}
-            </span>
+          
+          {/* Management buttons inline with title */}
+          <div className="flex items-center">
+            <Button
+              onClick={onManageWorkflows}
+              variant="ghost"
+              className="h-8 px-2 text-white hover:text-[#8b5cf6] hover:bg-transparent cursor-pointer"
+              title="Manage Workflows"
+            >
+              <FileText size={16}/>
+            </Button>
+            <Button
+              onClick={handleSave}
+              variant="ghost"
+              className="h-8 px-2 text-white hover:text-[#8b5cf6] cursor-pointer"
+              title="Save Workflow"
+            >
+              <Save size={16} />
+            </Button>
           </div>
-
-          {/* Validation status */}
-          {!workflowState.isValid && workflowState.validationErrors.length > 0 && (
-            <div className="flex items-center gap-1 text-red-400" title={workflowState.validationErrors.join(', ')}>
-              <AlertTriangle size={16} />
-              <span className="text-sm">{workflowState.validationErrors.length} issue(s)</span>
-            </div>
-          )}
-
-          {workflowState.isValid && workflowState.status !== 'draft' && (
-            <div className="flex items-center gap-1 text-green-400">
-              <CheckCircle size={16} />
-              <span className="text-sm">Valid</span>
-            </div>
-          )}
         </div>
 
         {/* Right side - Action buttons */}
         <div className="flex items-center gap-2">
-
-
           {/* Run Test button */}
           <Button
             onClick={handleRunTest}
             disabled={workflowState.status === 'testing'}
-            className="bg-[#8b5cf6] hover:bg-[#7c3aed] text-white h-8 px-3 text-sm cursor-pointer"
+            className="bg-[#3d3d3d] hover:bg-[#3d3d3d]/80 text-white h-8 px-3 text-sm cursor-pointer"
           >
             <Play size={14} className="mr-1" />
             {workflowState.status === 'testing' ? 'Testing...' : 'Run Test'}
           </Button>
 
-          {/* Save button */}
-          <Button
-            onClick={handleSave}
-            className=" text-white hover:bg-[#3d3d3d]/80 bg-[#3d3d3d] h-8 px-3 text-sm cursor-pointer"
-          >
-            <Save size={14} className="mr-1" />
-            Save
-          </Button>
+
 
           {/* Enable/Disable toggle */}
           <Button
@@ -286,7 +243,7 @@ export function WorkflowToolbar({
             disabled={workflowState.status === 'testing' || (!workflowState.isValid && canActivate)}
             className={`h-8 px-3 text-sm ${
               canActivate 
-                ? 'bg-green-600 hover:bg-green-700 text-white' 
+                ? 'bg-[#8b5cf6] hover:bg-[#7c3aed] text-white' 
                 : 'bg-yellow-600 hover:bg-yellow-700 text-white'
             }`}
           >

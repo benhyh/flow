@@ -30,7 +30,6 @@ import {
   useConnectionFeedback,
   WorkflowToolbar,
   useWorkflowState,
-  EmptyCanvasWelcome,
   ResponsiveLayout,
   AdvancedCanvasControls,
   KeyboardShortcuts,
@@ -44,7 +43,7 @@ import {
 import { AuthenticationMonitor } from '@/components/workflow/AuthenticationMonitor'
 
 import { Button } from '@/components/ui/button'
-import { Undo, Redo, Save } from 'lucide-react'
+import { Undo, Redo } from 'lucide-react'
 
 import '@xyflow/react/dist/style.css'
 
@@ -53,7 +52,7 @@ const initialNodes: Node[] = []
 const initialEdges: Edge[] = []
 
 export default function Dashboard() {
-  const { user, loading, signOut } = useAuth()
+  const { user, loading } = useAuth()
   const router = useRouter()
   const reactFlowWrapper = useRef<HTMLDivElement>(null)
   const [reactFlowInstance, setReactFlowInstance] =
@@ -73,6 +72,7 @@ export default function Dashboard() {
 
   // Will be provided by WorkflowExecutionWrapper inside ReactFlowProvider
   const [validationPanelVisible, setValidationPanelVisible] = useState(false)
+  const [workflowManagerOpen, setWorkflowManagerOpen] = useState(false)
 
   const [nodes, setNodes] = useState<Node[]>(initialNodes)
   const [edges, setEdges] = useState<Edge[]>(initialEdges)
@@ -271,10 +271,7 @@ export default function Dashboard() {
     [autoSnapshot, reactFlowInstance]
   )
 
-  const handleSignOut = async () => {
-    await signOut()
-    router.push('/auth')
-  }
+
 
   if (loading) {
     return (
@@ -306,6 +303,8 @@ export default function Dashboard() {
               onRunTest={executeWorkflow}
               onSave={() => handleSave(nodes, edges)}
               onToggleStatus={handleToggleStatus}
+              onManageWorkflows={() => setWorkflowManagerOpen(true)}
+              onManageWorkflows={() => setWorkflowManagerOpen(true)}
             />
           }
           sidebar={<NodeLibrary />}
@@ -317,10 +316,10 @@ export default function Dashboard() {
 
 
             {/* Undo/Redo Controls */}
-            <div className="flex items-center gap-1 bg-background/80 backdrop-blur-sm rounded-lg p-1 border">
+            <div className="flex items-center gap-1 bg-transparent p-1">
               <Button
                 size="sm"
-                variant="ghost"
+                variant="ghost" className="text-white/70 hover:text-white hover:bg-white/10"
                 disabled={!undoRedo.canUndo}
                 onClick={() => {
                   const snapshot = undoRedo.undo()
@@ -335,7 +334,7 @@ export default function Dashboard() {
               </Button>
               <Button
                 size="sm"
-                variant="ghost"
+                variant="ghost" className="text-white/70 hover:text-white hover:bg-white/10"
                 disabled={!undoRedo.canRedo}
                 onClick={() => {
                   const snapshot = undoRedo.redo()
@@ -347,14 +346,6 @@ export default function Dashboard() {
                 title="Redo (Ctrl+Y)"
               >
                 <Redo size={14} />
-              </Button>
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={() => handleSave(nodes, edges)}
-                title="Save Workflow (Ctrl+S)"
-              >
-                <Save size={14} />
               </Button>
             </div>
 
@@ -378,6 +369,9 @@ export default function Dashboard() {
                   100
                 )
               }}
+              open={workflowManagerOpen}
+              onOpenChange={setWorkflowManagerOpen}
+              hideButton={true}
               onCreateNew={() => {
                 const newState = createNewWorkflow()
                 setNodes([])
@@ -388,18 +382,7 @@ export default function Dashboard() {
               }}
             />
 
-            {/* User info and logout */}
-            <div className="flex items-center gap-2 bg-background/80 backdrop-blur-sm rounded-lg px-3 py-1.5 border">
-              <span className="text-sm">
-                Welcome, {user.email?.split('@')[0]}!
-              </span>
-              <button
-                onClick={handleSignOut}
-                className="bg-red-600 hover:bg-red-700 text-white px-2 py-1 rounded text-xs transition-colors"
-              >
-                Logout
-              </button>
-            </div>
+
           </div>
 
           {/* React Flow Canvas */}
@@ -428,14 +411,7 @@ export default function Dashboard() {
               <ConfigPanel />
             </ReactFlow>
 
-            {/* Empty Canvas Welcome Screen */}
-            {nodes.length === 0 && (
-              <EmptyCanvasWelcome
-                onNodesChange={handleNodesChange}
-                onEdgesChange={handleEdgesChange}
-                onWorkflowStateChange={updateWorkflowState}
-              />
-            )}
+
           </div>
 
           {/* Keyboard Shortcuts Handler */}

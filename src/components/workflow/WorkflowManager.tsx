@@ -49,6 +49,9 @@ interface WorkflowManagerProps {
   onLoadWorkflow: (nodes: Node[], edges: Edge[], state: WorkflowState) => void
   onCreateNew: () => void
   className?: string
+  open?: boolean
+  onOpenChange?: (open: boolean) => void
+  hideButton?: boolean
 }
 
 export function WorkflowManager({
@@ -57,15 +60,22 @@ export function WorkflowManager({
   currentWorkflowState: _currentWorkflowState,
   onLoadWorkflow,
   onCreateNew,
-  className = ''
+  className = '',
+  open: externalOpen,
+  onOpenChange: externalOnOpenChange,
+  hideButton = false
 }: WorkflowManagerProps) {
   const [workflows, setWorkflows] = useState<StoredWorkflow[]>([])
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedWorkflow, setSelectedWorkflow] = useState<StoredWorkflow | null>(null)
   const [workflowVersions, setWorkflowVersions] = useState<WorkflowVersion[]>([])
   const [validationResults, setValidationResults] = useState<Map<string, ValidationResult>>(new Map())
-  const [isOpen, setIsOpen] = useState(false)
+  const [internalIsOpen, setInternalIsOpen] = useState(false)
   const [activeTab, setActiveTab] = useState('workflows')
+  
+  // Use external control if provided, otherwise use internal state
+  const isOpen = externalOpen !== undefined ? externalOpen : internalIsOpen
+  const setIsOpen = externalOnOpenChange || setInternalIsOpen
 
   // Load workflows from storage
   const loadWorkflows = useCallback(() => {
@@ -232,12 +242,14 @@ export function WorkflowManager({
 
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
-      <DialogTrigger asChild>
-        <Button variant="outline" className={className}>
-          <FileText size={16} className="mr-2" />
-          Manage Workflows
-        </Button>
-      </DialogTrigger>
+      {!hideButton && (
+        <DialogTrigger asChild>
+          <Button variant="outline" className={className}>
+            <FileText size={16} className="mr-2" />
+            Manage Workflows
+          </Button>
+        </DialogTrigger>
+      )}
       <DialogContent className="max-w-6xl max-h-[90vh] overflow-hidden">
         <DialogHeader>
           <DialogTitle>Workflow Manager</DialogTitle>

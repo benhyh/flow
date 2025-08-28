@@ -1,7 +1,8 @@
 'use client'
 
-import React from 'react'
-import { Handle, Position, type NodeProps } from '@xyflow/react'
+import React, { useState } from 'react'
+import { Handle, Position, type NodeProps, useReactFlow } from '@xyflow/react'
+import { X } from 'lucide-react'
 import { type BaseNodeData } from './BaseNode'
 import { setConfiguredNode } from '../panels/ConfigPanel'
 
@@ -14,8 +15,10 @@ interface LogicNodeData extends BaseNodeData {
 }
 
 export function LogicNode(props: NodeProps) {
-  const { data, id } = props
+  const { data, id, selected } = props
   const nodeData = data as unknown as LogicNodeData
+  const { deleteElements } = useReactFlow()
+  const [isHovered, setIsHovered] = useState(false)
 
   const handleDoubleClick = () => {
     if (id) {
@@ -23,15 +26,34 @@ export function LogicNode(props: NodeProps) {
     }
   }
 
+  const handleDelete = (e: React.MouseEvent) => {
+    e.stopPropagation() // Prevent triggering other node events
+    if (id) {
+      deleteElements({ nodes: [{ id }] })
+    }
+  }
+
   return (
     <div 
       className={`
         relative min-w-[180px] rounded-lg border-2 transition-all duration-200
-        ${props.selected ? 'ring-2 ring-[#8b5cf6] ring-opacity-50 border-[#8b5cf6]' : 'border-[#3d3d3d]'}
+        ${selected ? 'ring-2 ring-[#8b5cf6] ring-opacity-50 border-[#8b5cf6]' : 'border-[#3d3d3d]'}
         bg-[#2d2d2d] hover:border-[#8b5cf6] hover:ring-2 hover:ring-[#8b5cf6] hover:ring-opacity-30 shadow-lg hover:shadow-xl
       `}
       onDoubleClick={handleDoubleClick}
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
     >
+      {/* Delete Button - Top Right Corner */}
+      {isHovered && (
+        <button
+          onClick={handleDelete}
+          className="absolute -top-2 -right-2 w-6 h-6 bg-[#8b5cf6] hover:bg-[#7c3aed] rounded-full flex items-center justify-center transition-all duration-200 z-10 shadow-lg hover:shadow-xl"
+          title="Delete node"
+        >
+          <X size={12} className="text-white" />
+        </button>
+      )}
       {/* Target Handle (Input) */}
       <Handle
         type="target"
@@ -59,16 +81,16 @@ export function LogicNode(props: NodeProps) {
         <div className="mt-2">
           <div className="text-xs text-gray-400 mb-1">Logic Configuration</div>
           
-          {nodeData.config?.condition && nodeData.config?.operator && (
+          {nodeData.config?.field && nodeData.config?.operator && nodeData.config?.value && (
             <div className="space-y-1">
               <div className="text-xs text-gray-300">
-                <span className="text-gray-500">If:</span> {nodeData.config.condition} {nodeData.config.operator}
+                <span className="text-gray-500">If:</span> {nodeData.config.field} {nodeData.config.operator} "{nodeData.config.value}"
               </div>
             </div>
           )}
           
-          {!nodeData.config?.condition && (
-            <div className="text-xs text-gray-500 italic">Select node to configure</div>
+          {(!nodeData.config?.field || !nodeData.config?.operator || !nodeData.config?.value) && (
+            <div className="text-xs text-gray-500 italic">Double-click to configure</div>
           )}
         </div>
       </div>

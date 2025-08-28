@@ -34,25 +34,35 @@ export function AINode(props: NodeProps) {
         </div>
         
         {/* Display AI Tagging configuration */}
-        {nodeData.config?.tags && (
+        {nodeData.config?.selectedTags && (
           <div className="space-y-1">
             <div className="text-xs text-gray-300">
-              <span className="text-gray-500">Tags:</span> {nodeData.config.tags.join(', ')}
+              <span className="text-gray-500">Tags:</span> {(nodeData.config.selectedTags as string[]).join(', ')}
             </div>
+            {nodeData.config?.targetType && (
+              <div className="text-xs text-blue-400">
+                <span className="text-gray-500">Target:</span> {nodeData.config.targetType === 'both' ? 'Trello & Asana' : nodeData.config.targetType}
+              </div>
+            )}
           </div>
         )}
         
         {/* Display AI Classification configuration */}
-        {nodeData.config?.categories && (
+        {nodeData.config?.selectedCategories && (
           <div className="space-y-1">
             <div className="text-xs text-gray-300">
-              <span className="text-gray-500">Categories:</span> {nodeData.config.categories.join(', ')}
+              <span className="text-gray-500">Categories:</span> {(nodeData.config.selectedCategories as string[]).join(', ')}
             </div>
+            {nodeData.config?.targetType && (
+              <div className="text-xs text-blue-400">
+                <span className="text-gray-500">Target:</span> {nodeData.config.targetType === 'both' ? 'Trello & Asana' : nodeData.config.targetType}
+              </div>
+            )}
           </div>
         )}
         
-        {!nodeData.config?.tags && !nodeData.config?.categories && (
-          <div className="text-xs text-gray-500 italic">Select node to configure</div>
+        {!nodeData.config?.selectedTags && !nodeData.config?.selectedCategories && (
+          <div className="text-xs text-gray-500 italic">Double-click to configure</div>
         )}
       </div>
     </BaseNode>
