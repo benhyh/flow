@@ -467,6 +467,7 @@ export function WorkflowManager({
                               size="sm" 
                               variant="outline"
                               onClick={() => handleRestoreVersion(selectedWorkflow.id, version.version)}
+                              className={version.nodes.length > 0 ? "cursor-pointer" : ""}
                             >
                               Restore
                             </Button>

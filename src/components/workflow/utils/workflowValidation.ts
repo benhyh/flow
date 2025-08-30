@@ -69,16 +69,8 @@ function validateWorkflowStructure(
   warnings: ValidationError[], 
   _info: ValidationError[]
 ): void {
-  // Check for empty workflow
+  // Don't show warnings for empty workflows
   if (nodes.length === 0) {
-    warnings.push({
-      id: 'empty-workflow',
-      type: 'warning',
-      category: 'structure',
-      message: 'Workflow is empty',
-      severity: 'medium',
-      suggestion: 'Add at least one trigger node to start building your workflow'
-    })
     return
   }
 

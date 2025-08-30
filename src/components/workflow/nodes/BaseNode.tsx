@@ -4,6 +4,7 @@ import React, { useState } from 'react'
 import { Handle, Position, type NodeProps, useReactFlow } from '@xyflow/react'
 import { X } from 'lucide-react'
 import { setConfiguredNode } from '../panels/ConfigPanel'
+import { useNodeOperationsContext } from '../contexts/NodeOperationsContext'
 
 export interface BaseNodeData {
   label: string
@@ -35,7 +36,8 @@ export function BaseNode({
 }: BaseNodeProps) {
   // Type assertion to ensure data has the expected properties
   const nodeData = data as unknown as BaseNodeData
-  const { deleteElements } = useReactFlow()
+  const { deleteElements, getNodes, getEdges } = useReactFlow()
+  const { recordNodeDeletion } = useNodeOperationsContext()
   const [isHovered, setIsHovered] = useState(false)
   const getStatusColor = () => {
     switch (nodeData.status) {
@@ -66,6 +68,20 @@ export function BaseNode({
   const handleDelete = (e: React.MouseEvent) => {
     e.stopPropagation() // Prevent triggering other node events
     if (id) {
+      // Get current node and connected edges before deletion
+      const nodes = getNodes()
+      const edges = getEdges()
+      const nodeToDelete = nodes.find(n => n.id === id)
+      const connectedEdges = edges.filter(edge => 
+        edge.source === id || edge.target === id
+      )
+      
+      if (nodeToDelete) {
+        // Record the deletion operation
+        recordNodeDeletion(nodeToDelete, connectedEdges)
+      }
+      
+      // Delete the node and its connections
       deleteElements({ nodes: [{ id }] })
     }
   }
@@ -99,7 +115,7 @@ export function BaseNode({
         <Handle
           type="target"
           position={handlePosition.target!}
-          className="w-3 h-3 !bg-[#8b5cf6] !border-2 !border-white hover:!bg-[#7c3aed] transition-colors"
+          className="w-3 h-3 !bg-[#8b5cf6]  hover:!bg-[#7c3aed] transition-colors"
         />
       )}
 
@@ -146,7 +162,7 @@ export function BaseNode({
         <Handle
           type="source"
           position={handlePosition.source!}
-          className="w-3 h-3 !bg-[#8b5cf6] !border-2 !border-white hover:!bg-[#7c3aed] transition-colors"
+          className="w-3 h-3 !bg-[#8b5cf6]  hover:!bg-[#7c3aed] transition-colors"
         />
       )}
     </div>

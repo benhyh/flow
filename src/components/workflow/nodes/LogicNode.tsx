@@ -58,7 +58,7 @@ export function LogicNode(props: NodeProps) {
       <Handle
         type="target"
         position={Position.Left}
-        className="w-3 h-3 !bg-[#8b5cf6] !border-2 !border-white hover:!bg-[#7c3aed] transition-colors"
+        className="w-3 h-3 !bg-[#8b5cf6]  hover:!bg-[#7c3aed] transition-colors"
       />
 
       {/* Node Content */}
@@ -101,14 +101,14 @@ export function LogicNode(props: NodeProps) {
         position={Position.Right}
         id="true"
         style={{ top: '40%' }}
-        className="w-3 h-3 !bg-green-500 !border-2 !border-white hover:!bg-green-400 transition-colors"
+        className="w-3 h-3 !bg-green-500  hover:!bg-green-400 transition-colors"
       />
       <Handle
         type="source"
         position={Position.Right}
         id="false"
         style={{ top: '60%' }}
-        className="w-3 h-3 !bg-red-500 !border-2 !border-white hover:!bg-red-400 transition-colors"
+        className="w-3 h-3 !bg-red-500  hover:!bg-red-400 transition-colors"
       />
       
       {/* Handle Labels */}

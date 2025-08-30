@@ -38,6 +38,7 @@ interface ValidationPanelProps {
   onToggle: () => void
   onFixError?: (error: ValidationError) => void
   className?: string
+  hasNodes?: boolean // Whether there are nodes in the workflow
 }
 
 export function ValidationPanel({
@@ -46,6 +47,7 @@ export function ValidationPanel({
   onToggle,
   onFixError,
   className = '',
+  hasNodes = false,
 }: ValidationPanelProps) {
   const [expandedSections, setExpandedSections] = useState<Set<string>>(
     new Set(['errors'])
@@ -68,61 +70,52 @@ export function ValidationPanel({
     return 'destructive'
   }
 
-  const getCategoryIcon = (category: string) => {
-    switch (category) {
-      case 'structure':
-        return <Target size={14} />
-      case 'configuration':
-        return <Zap size={14} />
-      case 'connection':
-        return <Target size={14} />
-      case 'logic':
-        return <Target size={14} />
-      default:
-        return <Info size={14} />
-    }
-  }
-
-  const getSeverityColor = (severity: string) => {
-    switch (severity) {
-      case 'critical':
-        return 'text-red-600'
-      case 'high':
-        return 'text-red-500'
-      case 'medium':
-        return 'text-yellow-600'
-      case 'low':
-        return 'text-blue-600'
-      default:
-        return 'text-gray-600'
-    }
-  }
+  // Simplified: no more category icons or severity levels
 
   if (!isVisible) {
+    const isDisabled = !hasNodes
+    
+    // Determine icon color based on validation state
+    const getIconColor = () => {
+      if (isDisabled) {
+        return '#5a5a5a' // Gray when disabled
+      }
+      
+      if (!validation || (!validation.errors.length && !validation.warnings.length)) {
+        return '#5a5a5a' // Gray when no issues
+      }
+      
+      if (validation.errors.length > 0) {
+        return '#ef4444' // Red for errors
+      }
+      
+      if (validation.warnings.length > 0) {
+        return '#f97316' // Orange for warnings
+      }
+      
+      return '#5a5a5a' // Default gray
+    }
+    
     return (
-      <Button
-        variant="outline"
-        size="sm"
-        onClick={onToggle}
-        className={`fixed bottom-4 right-4 z-20 ${className}`}
+      <button
+        onClick={isDisabled ? undefined : onToggle}
+        disabled={isDisabled}
+        className={`absolute top-4 left-4 z-20 p-2 hover:bg-white/10 rounded transition-colors ${isDisabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'} ${className}`}
       >
-        <AlertCircle size={16} className="mr-2" />
-        Validation
-        {validation && validation.errors.length > 0 && (
-          <Badge variant="destructive" className="ml-2 text-xs">
-            {validation.errors.length}
-          </Badge>
-        )}
-      </Button>
+        <AlertCircle 
+          size={20} 
+          style={{ color: getIconColor() }} 
+        />
+      </button>
     )
   }
 
   return (
-    <Card className={`fixed bottom-4 right-4 w-96 max-h-96 z-20 ${className}`}>
+    <Card className={`absolute top-4 left-4 w-96 max-h-96 z-20 bg-[#2d2d2d] border-[#3d3d3d] text-white ${className}`}>
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <CardTitle className="text-base">Workflow Validation</CardTitle>
+            <CardTitle className="text-base text-white">Workflow Validation</CardTitle>
             {validation && (
               <Badge
                 variant={getScoreBadgeVariant(validation.score)}
@@ -132,7 +125,7 @@ export function ValidationPanel({
               </Badge>
             )}
           </div>
-          <Button variant="ghost" size="sm" onClick={onToggle}>
+          <Button variant="ghost" size="sm" onClick={onToggle} className="text-white hover:bg-[#3d3d3d] hover:text-white">
             <X size={16} />
           </Button>
         </div>
@@ -156,7 +149,7 @@ export function ValidationPanel({
 
       <CardContent className="pt-0">
         {!validation ? (
-          <div className="text-center py-4 text-muted-foreground">
+          <div className="text-center py-4 text-gray-300">
             <Info size={24} className="mx-auto mb-2" />
             <p>No validation results yet</p>
             <p className="text-xs">Make changes to see validation feedback</p>
@@ -173,7 +166,7 @@ export function ValidationPanel({
                   <CollapsibleTrigger asChild>
                     <Button
                       variant="ghost"
-                      className="w-full justify-start p-0 h-auto"
+                      className="w-full justify-start p-0 h-auto text-white hover:bg-[#3d3d3d] hover:text-white"
                     >
                       <div className="flex items-center gap-2">
                         {expandedSections.has('errors') ? (
@@ -195,8 +188,6 @@ export function ValidationPanel({
                         key={error.id}
                         error={error}
                         onFix={onFixError}
-                        getCategoryIcon={getCategoryIcon}
-                        getSeverityColor={getSeverityColor}
                       />
                     ))}
                   </CollapsibleContent>
@@ -212,7 +203,7 @@ export function ValidationPanel({
                   <CollapsibleTrigger asChild>
                     <Button
                       variant="ghost"
-                      className="w-full justify-start p-0 h-auto"
+                      className="w-full justify-start p-0 h-auto text-white hover:bg-[#3d3d3d] hover:text-white"
                     >
                       <div className="flex items-center gap-2">
                         {expandedSections.has('warnings') ? (
@@ -234,8 +225,6 @@ export function ValidationPanel({
                         key={warning.id}
                         error={warning}
                         onFix={onFixError}
-                        getCategoryIcon={getCategoryIcon}
-                        getSeverityColor={getSeverityColor}
                       />
                     ))}
                   </CollapsibleContent>
@@ -251,7 +240,7 @@ export function ValidationPanel({
                   <CollapsibleTrigger asChild>
                     <Button
                       variant="ghost"
-                      className="w-full justify-start p-0 h-auto"
+                      className="w-full justify-start p-0 h-auto text-white hover:bg-[#3d3d3d] hover:text-white"
                     >
                       <div className="flex items-center gap-2">
                         {expandedSections.has('info') ? (
@@ -273,8 +262,6 @@ export function ValidationPanel({
                         key={info.id}
                         error={info}
                         onFix={onFixError}
-                        getCategoryIcon={getCategoryIcon}
-                        getSeverityColor={getSeverityColor}
                       />
                     ))}
                   </CollapsibleContent>
@@ -293,7 +280,7 @@ export function ValidationPanel({
                     <p className="text-green-600 font-medium">
                       Perfect workflow!
                     </p>
-                    <p className="text-xs text-muted-foreground">
+                    <p className="text-xs text-gray-300">
                       No issues found
                     </p>
                   </div>
@@ -309,34 +296,35 @@ export function ValidationPanel({
 interface ValidationErrorItemProps {
   error: ValidationError
   onFix?: (error: ValidationError) => void
-  getCategoryIcon: (category: string) => React.ReactNode
-  getSeverityColor: (severity: string) => string
 }
 
 function ValidationErrorItem({
   error,
   onFix,
-  getCategoryIcon,
-  getSeverityColor,
 }: ValidationErrorItemProps) {
+  // Simple color scheme: red for errors, orange for warnings
+  const getErrorColor = () => {
+    switch (error.type) {
+      case 'error':
+        return 'border-red-500/30 bg-red-500/10'
+      case 'warning':
+        return 'border-orange-500/30 bg-orange-500/10'
+      default:
+        return 'border-blue-500/30 bg-blue-500/10'
+    }
+  }
   return (
-    <div className="p-2 rounded border bg-muted/30">
-      <div className="flex items-start gap-2">
-        <div className="flex items-center gap-1 text-xs text-muted-foreground">
-          {getCategoryIcon(error.category)}
-          <span className={getSeverityColor(error.severity)}>
-            {error.severity}
-          </span>
-        </div>
+    <div className={`p-3 rounded border ${getErrorColor()}`}>
+      <div className="flex items-start justify-between gap-3">
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-medium">{error.message}</p>
+          <p className="text-sm font-medium text-white">{error.message}</p>
           {error.suggestion && (
-            <p className="text-xs text-muted-foreground mt-1">
+            <p className="text-xs text-gray-300 mt-1">
               💡 {error.suggestion}
             </p>
           )}
           {error.nodeId && (
-            <p className="text-xs text-muted-foreground mt-1">
+            <p className="text-xs text-gray-400 mt-1">
               Node: {error.nodeId}
             </p>
           )}
@@ -345,7 +333,7 @@ function ValidationErrorItem({
           <Button
             size="sm"
             variant="outline"
-            className="text-xs h-6 px-2"
+            className="text-xs h-6 px-2 bg-[#2d2d2d] border-[#3d3d3d] text-white hover:bg-[#3d3d3d] hover:text-white"
             onClick={() => onFix(error)}
           >
             Fix
