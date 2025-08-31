@@ -6,7 +6,6 @@ import { Input } from '@/components/ui/input'
 import { 
   Play, 
   Power, 
-  PowerOff, 
   Pause,
   FileText,
   Save
@@ -21,8 +20,6 @@ export interface WorkflowState {
   id?: string
   name: string
   status: WorkflowStatus
-  lastSaved?: Date
-  lastRun?: Date
   isValid: boolean
   validationErrors: string[]
   lastValidation?: unknown // ValidationResult type - using unknown to avoid circular imports
@@ -151,8 +148,7 @@ export function WorkflowToolbar({
     const validation = validateWorkflow()
     onWorkflowStateChange({ 
       isValid: validation.isValid, 
-      validationErrors: validation.errors,
-      lastSaved: new Date()
+      validationErrors: validation.errors
     })
     onSave()
   }, [validateWorkflow, onWorkflowStateChange, onSave])
@@ -172,8 +168,9 @@ export function WorkflowToolbar({
     onToggleStatus()
   }, [validateWorkflow, workflowState.status, onWorkflowStateChange, onToggleStatus])
 
-
   const canActivate = workflowState.status === 'draft' || workflowState.status === 'paused'
+
+
 
   return (
     <div className="bg-[#2d2d2d] px-4 py-3">
@@ -188,7 +185,7 @@ export function WorkflowToolbar({
                 onChange={(e) => setTempName(e.target.value)}
                 onBlur={handleNameSave}
                 onKeyDown={handleKeyPress}
-                className="bg-[#1d1d1d] border-[#3d3d3d] text-white h-8 w-48 text-sm"
+                className="bg-[#1d1d1d] text-white h-8 w-48 text-sm"
                 autoFocus
               />
             ) : (
@@ -215,7 +212,7 @@ export function WorkflowToolbar({
             <Button
               onClick={handleSave}
               variant="ghost"
-              className="h-8 px-2 text-white hover:text-[#8b5cf6] cursor-pointer"
+              className="h-8 px-2 text-white hover:text-[#8b5cf6] hover:bg-transparent cursor-pointer"
               title="Save Workflow"
             >
               <Save size={16} />
@@ -234,8 +231,6 @@ export function WorkflowToolbar({
             <Play size={14} className="mr-1" />
             {workflowState.status === 'testing' ? 'Testing...' : 'Run Test'}
           </Button>
-
-
 
           {/* Enable/Disable toggle */}
           <Button
@@ -262,17 +257,7 @@ export function WorkflowToolbar({
         </div>
       </div>
 
-      {/* Last saved/run info */}
-      {(workflowState.lastSaved || workflowState.lastRun) && (
-        <div className="flex items-center gap-4 mt-2 text-xs text-gray-400">
-          {workflowState.lastSaved && (
-            <span>Last saved: {workflowState.lastSaved.toLocaleTimeString()}</span>
-          )}
-          {workflowState.lastRun && (
-            <span>Last run: {workflowState.lastRun.toLocaleTimeString()}</span>
-          )}
-        </div>
-      )}
+
     </div>
   )
 }

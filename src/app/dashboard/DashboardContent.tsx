@@ -75,7 +75,7 @@ export function DashboardContent() {
   })
 
   // Will be provided by WorkflowExecutionWrapper inside ReactFlowProvider
-  const [validationPanelVisible, setValidationPanelVisible] = useState(true) // Start visible to show validation feedback
+  const [validationPanelVisible, setValidationPanelVisible] = useState(false) // Start hidden to avoid clutter
   const [workflowManagerOpen, setWorkflowManagerOpen] = useState(false)
 
   const [nodes, setNodes] = useState<Node[]>(initialNodes)

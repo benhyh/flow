@@ -137,8 +137,7 @@ export function NodeLibrary({ className = '', collapsed = false }: NodeLibraryPr
               key={node.id}
               draggable
               onDragStart={(event) => onDragStart(event, node)}
-              className={`flex items-center ${collapsed ? 'p-2 justify-center' : 'p-3'} bg-[#2d2d2d] rounded-lg hover:border-[#10b981] hover:bg-[#2d2d2d]/80 cursor-grab active:cursor-grabbing transition-all duration-200`}
-              style={{ borderLeftColor: node.color, borderLeftWidth: '3px' }}
+              className={`flex items-center ${collapsed ? 'p-2 justify-center' : 'p-3'} bg-[#2d2d2d] rounded-lg hover:bg-[#3d3d3d]/80 cursor-grab active:cursor-grabbing transition-all duration-200`}
               title={collapsed ? `${node.label}: ${node.description}` : undefined}
               role="button"
               tabIndex={0}
@@ -168,8 +167,7 @@ export function NodeLibrary({ className = '', collapsed = false }: NodeLibraryPr
               key={node.id}
               draggable
               onDragStart={(event) => onDragStart(event, node)}
-              className={`flex items-center ${collapsed ? 'p-2 justify-center' : 'p-3'} bg-[#2d2d2d] rounded-lg hover:border-[#3b82f6] hover:bg-[#2d2d2d]/80 cursor-grab active:cursor-grabbing transition-all duration-200`}
-              style={{ borderLeftColor: node.color, borderLeftWidth: '3px' }}
+              className={`flex items-center ${collapsed ? 'p-2 justify-center' : 'p-3'} bg-[#2d2d2d] rounded-lg hover:bg-[#3d3d3d]/80 cursor-grab active:cursor-grabbing transition-all duration-200`}
               title={collapsed ? `${node.label}: ${node.description}` : undefined}
               role="button"
               tabIndex={0}
@@ -199,8 +197,7 @@ export function NodeLibrary({ className = '', collapsed = false }: NodeLibraryPr
               key={node.id}
               draggable
               onDragStart={(event) => onDragStart(event, node)}
-              className={`flex items-center ${collapsed ? 'p-2 justify-center' : 'p-3'} bg-[#2d2d2d] rounded-lg hover:border-[#f59e0b] hover:bg-[#2d2d2d]/80 cursor-grab active:cursor-grabbing transition-all duration-200`}
-              style={{ borderLeftColor: node.color, borderLeftWidth: '3px' }}
+              className={`flex items-center ${collapsed ? 'p-2 justify-center' : 'p-3'} bg-[#2d2d2d] rounded-lg hover:bg-[#3d3d3d]/80 cursor-grab active:cursor-grabbing transition-all duration-200`}
               title={collapsed ? `${node.label}: ${node.description}` : undefined}
               role="button"
               tabIndex={0}
@@ -230,8 +227,7 @@ export function NodeLibrary({ className = '', collapsed = false }: NodeLibraryPr
               key={node.id}
               draggable
               onDragStart={(event) => onDragStart(event, node)}
-              className={`flex items-center ${collapsed ? 'p-2 justify-center' : 'p-3'} bg-[#2d2d2d] rounded-lg hover:border-[#8b5cf6] hover:bg-[#2d2d2d]/80 cursor-grab active:cursor-grabbing transition-all duration-200`}
-              style={{ borderLeftColor: node.color, borderLeftWidth: '3px' }}
+              className={`flex items-center ${collapsed ? 'p-2 justify-center' : 'p-3'} bg-[#2d2d2d] rounded-lg hover:bg-[#3d3d3d]/80 cursor-grab active:cursor-grabbing transition-all duration-200`}
               title={collapsed ? `${node.label}: ${node.description}` : undefined}
               role="button"
               tabIndex={0}
@@ -296,7 +292,7 @@ export function NodeLibrary({ className = '', collapsed = false }: NodeLibraryPr
             </div>
           ) : (
             /* Collapsed view */
-            <div className="space-y-2">
+            <div>
               {/* User Avatar */}
               <div className="relative w-8 h-8 rounded-full overflow-hidden bg-[#3d3d3d] flex items-center justify-center mx-auto">
                 {user.user_metadata?.avatar_url && !imageError ? (
@@ -313,15 +309,6 @@ export function NodeLibrary({ className = '', collapsed = false }: NodeLibraryPr
                   <User size={16} className="text-gray-400" />
                 )}
               </div>
-
-              {/* Logout Button */}
-              <button
-                onClick={handleSignOut}
-                className="w-full flex items-center justify-center p-2 bg-[#8b5cf6]/20 hover:bg-[#8b5cf6]/30 text-[#8b5cf6] hover:text-[#7c3aed] rounded-lg transition-all duration-200"
-                title="Sign Out"
-              >
-                <LogOut size={14} />
-              </button>
             </div>
           )}
         </div>

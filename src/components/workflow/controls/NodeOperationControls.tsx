@@ -35,7 +35,8 @@ export function NodeOperationControls({ onUndoOperation, currentNodesCount }: No
     operationsCount,
     additionsCount,
     deletionsCount,
-    clearOperations
+    clearOperations,
+    getRecentlyDeletedNodes
   } = useNodeOperationsContext()
 
   const handleUndo = () => {
@@ -55,20 +56,18 @@ export function NodeOperationControls({ onUndoOperation, currentNodesCount }: No
     }
   }
 
-  const handleRedo = () => {
-    // For now, we'll implement this as "restore last deleted node" 
-    // since our current stack doesn't support traditional redo
-    const lastDeletedOp = getLastOperation()
-    if (lastDeletedOp && lastDeletedOp.type === 'delete') {
-      const undoResult = undoLastOperation()
-      if (undoResult) {
-        onUndoOperation(undoResult.shouldAdd, undoResult.node, undoResult.connectedEdges)
-        toast.success(`Node restored!`, {
-          description: `Restored "${undoResult.node.data.label}"`
-        })
-      }
+  const handleRecover = () => {
+    // This button specifically restores the most recently deleted node
+    // without removing it from the operations stack
+    const recentDeleted = getRecentlyDeletedNodes(1)
+    if (recentDeleted.length > 0) {
+      const { node, connectedEdges } = recentDeleted[0]
+      onUndoOperation(true, node, connectedEdges) // shouldAdd = true to restore the node
+      toast.success(`Node recovered!`, {
+        description: `Recovered "${node.data.label}"`
+      })
     } else {
-      toast.info('No deleted nodes to restore')
+      toast.info('No deleted nodes to recover')
     }
   }
 
@@ -80,10 +79,10 @@ export function NodeOperationControls({ onUndoOperation, currentNodesCount }: No
     return `${action}: "${lastOp.node.data.label}"`
   }
 
-  const getRedoTooltip = () => {
-    const lastOp = getLastOperation()
-    if (!lastOp || lastOp.type !== 'delete') return 'No deleted nodes to restore'
-    return `Restore deleted: "${lastOp.node.data.label}"`
+  const getRecoverTooltip = () => {
+    const recentDeleted = getRecentlyDeletedNodes(1)
+    if (recentDeleted.length === 0) return 'No deleted nodes to recover'
+    return `Recover deleted: "${recentDeleted[0].node.data.label}"`
   }
 
   const handleConfirmClear = () => {
@@ -114,9 +113,9 @@ export function NodeOperationControls({ onUndoOperation, currentNodesCount }: No
         size="sm"
         variant="ghost" 
         className="text-white/70 hover:text-white hover:bg-white/10 h-8 w-8 p-0"
-        disabled={!getLastOperation() || getLastOperation()?.type !== 'delete'}
-        onClick={handleRedo}
-        title={getRedoTooltip()}
+        disabled={getRecentlyDeletedNodes(1).length === 0}
+        onClick={handleRecover}
+        title={getRecoverTooltip()}
       >
         <Redo2 size={14} />
       </Button>
@@ -140,7 +139,7 @@ export function NodeOperationControls({ onUndoOperation, currentNodesCount }: No
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel className="bg-[#2d2d2d]text-white hover:bg-[#3d3d3d] hover:text-white">
+            <AlertDialogCancel className="bg-[#2d2d2d] text-white hover:bg-[#3d3d3d] hover:text-white">
               Cancel
             </AlertDialogCancel>
             <AlertDialogAction 

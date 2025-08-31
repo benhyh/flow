@@ -14,9 +14,6 @@ export interface StoredWorkflow {
   edges: Edge[]
   state: WorkflowState
   version: number
-  createdAt: string
-  updatedAt: string
-  tags?: string[]
 }
 
 export interface WorkflowVersion {
@@ -26,7 +23,6 @@ export interface WorkflowVersion {
   nodes: Node[]
   edges: Edge[]
   state: WorkflowState
-  createdAt: string
   description?: string
 }
 
@@ -71,7 +67,6 @@ export function saveWorkflow(
 ): StoredWorkflow {
   try {
     const workflows = getStoredWorkflows()
-    const now = new Date().toISOString()
     
     // Find existing workflow or create new one
     let existingWorkflow = workflows.find(w => w.id === workflowState.id)
@@ -84,7 +79,6 @@ export function saveWorkflow(
       existingWorkflow.nodes = nodes
       existingWorkflow.edges = edges
       existingWorkflow.state = { ...workflowState }
-      existingWorkflow.updatedAt = now
       existingWorkflow.version += 1
       if (description) existingWorkflow.description = description
     } else {
@@ -96,10 +90,7 @@ export function saveWorkflow(
         nodes,
         edges,
         state: { ...workflowState, id: workflowState.id || generateId() },
-        version: 1,
-        createdAt: now,
-        updatedAt: now,
-        tags: []
+        version: 1
       }
       workflows.push(newWorkflow)
       existingWorkflow = newWorkflow
@@ -172,7 +163,6 @@ export function duplicateWorkflow(id: string, newName?: string): StoredWorkflow 
     const original = loadWorkflow(id)
     if (!original) return null
     
-    const now = new Date().toISOString()
     const duplicate: StoredWorkflow = {
       ...original,
       id: generateId(),
@@ -180,12 +170,9 @@ export function duplicateWorkflow(id: string, newName?: string): StoredWorkflow 
       state: {
         ...original.state,
         id: generateId(),
-        name: newName || `${original.name} (Copy)`,
-        status: 'draft'
+        name: newName || `${original.name} (Copy)`
       },
-      version: 1,
-      createdAt: now,
-      updatedAt: now
+      version: 1
     }
     
     const workflows = getStoredWorkflows()
@@ -213,7 +200,6 @@ function createWorkflowVersion(workflow: StoredWorkflow): void {
       nodes: [...workflow.nodes],
       edges: [...workflow.edges],
       state: { ...workflow.state },
-      createdAt: new Date().toISOString(),
       description: `Version ${workflow.version}`
     }
     
@@ -286,7 +272,6 @@ export function restoreWorkflowVersion(workflowId: string, version: number): Sto
       nodes: [...targetVersion.nodes],
       edges: [...targetVersion.edges],
       state: { ...targetVersion.state },
-      updatedAt: new Date().toISOString(),
       version: workflows[workflowIndex].version + 1
     }
     
@@ -363,8 +348,7 @@ export function searchWorkflows(query: string): StoredWorkflow[] {
     
     return workflows.filter(workflow => 
       workflow.name.toLowerCase().includes(lowercaseQuery) ||
-      workflow.description?.toLowerCase().includes(lowercaseQuery) ||
-      workflow.tags?.some(tag => tag.toLowerCase().includes(lowercaseQuery))
+      workflow.description?.toLowerCase().includes(lowercaseQuery)
     )
   } catch (error) {
     console.error('Error searching workflows:', error)
