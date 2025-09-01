@@ -11,6 +11,7 @@ import { useTrelloIntegration } from '../hooks/useTrelloIntegration'
 import { useAsanaIntegration } from '../hooks/useAsanaIntegration'
 import { type TrelloList, getTrelloTokenFromStorage } from '@/lib/trello-api'
 import { getAsanaTokensFromStorage } from '@/lib/asana-api'
+import { validateEmail } from '@/lib/utils'
 import { toast } from 'sonner'
 
 // Type for our custom node data
@@ -192,8 +193,34 @@ function EmailTriggerConfig({ config = {}, onUpdate, onClose }: EmailTriggerConf
   const [sender, setSender] = useState(emailFilters?.sender || '')
   const [subject, setSubject] = useState(emailFilters?.subject || '')
   const [keywords, setKeywords] = useState(emailFilters?.keywords?.join(', ') || '')
+  const [senderError, setSenderError] = useState('')
+
+  // Handle sender email change with validation
+  const handleSenderChange = (value: string) => {
+    setSender(value)
+    if (value.trim() && !validateEmail(value)) {
+      setSenderError('Please enter a valid email address')
+    } else {
+      setSenderError('')
+    }
+  }
 
   const handleSave = () => {
+    // Validate email before saving
+    if (sender.trim() && !validateEmail(sender)) {
+      setSenderError('Please enter a valid email address')
+      return
+    }
+
+    // Check if at least one filter is provided
+    const hasFilters = sender.trim() || subject.trim() || keywords.split(',').some((k: string) => k.trim())
+    if (!hasFilters) {
+      toast.error('At least one filter is required', {
+        description: 'Please provide a sender email, subject, or keywords'
+      })
+      return
+    }
+
     onUpdate({
       emailFilters: {
         sender: sender.trim(),
@@ -206,15 +233,26 @@ function EmailTriggerConfig({ config = {}, onUpdate, onClose }: EmailTriggerConf
 
   return (
     <div className="space-y-3">
+      <div className="mb-2">
+        <p className="text-xs text-gray-400">
+          Configure at least one filter to trigger the workflow
+        </p>
+      </div>
+      
       <div>
         <Label htmlFor="sender" className="text-gray-300 text-sm">Sender Email</Label>
         <Input
           id="sender"
           value={sender}
-          onChange={(e) => setSender(e.target.value)}
+          onChange={(e) => handleSenderChange(e.target.value)}
           placeholder="example@domain.com"
-          className="mt-1 bg-[#1d1d1d] border-[#3d3d3d] text-white nodrag h-8"
+          className={`mt-1 bg-[#1d1d1d] border-[#3d3d3d] text-white nodrag h-8 ${
+            senderError ? 'border-red-500' : ''
+          }`}
         />
+        {senderError && (
+          <p className="text-red-400 text-xs mt-1">{senderError}</p>
+        )}
       </div>
       
       <div>
@@ -226,6 +264,7 @@ function EmailTriggerConfig({ config = {}, onUpdate, onClose }: EmailTriggerConf
           placeholder="Important, Urgent, etc."
           className="mt-1 bg-[#1d1d1d] border-[#3d3d3d] text-white nodrag h-8"
         />
+        <p className="text-xs text-gray-500 mt-1">Optional: Filter emails by subject line</p>
       </div>
       
       <div>
@@ -237,11 +276,17 @@ function EmailTriggerConfig({ config = {}, onUpdate, onClose }: EmailTriggerConf
           placeholder="task, project, deadline"
           className="mt-1 bg-[#1d1d1d] border-[#3d3d3d] text-white nodrag h-8"
         />
+        <p className="text-xs text-gray-500 mt-1">Optional: Filter emails containing these keywords</p>
       </div>
       
       <Button 
         onClick={handleSave}
-        className="w-full bg-[#8b5cf6] hover:bg-[#7c3aed] text-white h-8 text-sm"
+        disabled={!!senderError}
+        className={`w-full h-8 text-sm ${
+          senderError 
+            ? 'bg-gray-600 text-gray-400 cursor-not-allowed' 
+            : 'bg-[#8b5cf6] hover:bg-[#7c3aed] text-white'
+        }`}
       >
         Save Configuration
       </Button>

@@ -77,9 +77,28 @@ export function DashboardContent() {
   // Will be provided by WorkflowExecutionWrapper inside ReactFlowProvider
   const [validationPanelVisible, setValidationPanelVisible] = useState(false) // Start hidden to avoid clutter
   const [workflowManagerOpen, setWorkflowManagerOpen] = useState(false)
+  const [executionErrors, setExecutionErrors] = useState<Array<{
+    nodeId: string
+    nodeLabel: string
+    message: string
+    suggestion?: string
+  }>>([])
 
   const [nodes, setNodes] = useState<Node[]>(initialNodes)
   const [edges, setEdges] = useState<Edge[]>(initialEdges)
+
+  const addExecutionError = useCallback((error: {
+    nodeId: string
+    nodeLabel: string
+    message: string
+    suggestion?: string
+  }) => {
+    setExecutionErrors(prev => [...prev, error])
+  }, [])
+
+  const clearExecutionErrors = useCallback(() => {
+    setExecutionErrors([])
+  }, [])
 
   // Initial validation when component mounts
   useEffect(() => {
@@ -114,6 +133,9 @@ export function DashboardContent() {
 
   // Auto-save and validate when nodes/edges change
   useEffect(() => {
+    // Clear execution errors when workflow changes
+    clearExecutionErrors()
+    
     // Always validate workflow, even when empty (to show proper empty state messages)
     const validationTimeout = setTimeout(() => {
       validateCurrentWorkflow(nodes, edges)
@@ -133,7 +155,7 @@ export function DashboardContent() {
         clearTimeout(autoSaveTimeout)
       }
     }
-  }, [nodes, edges, handleAutoSave, validateCurrentWorkflow])
+  }, [nodes, edges, handleAutoSave, validateCurrentWorkflow, clearExecutionErrors])
 
   // Create serializable wrapper functions
   const handleNodesChange = useCallback(
@@ -358,7 +380,10 @@ export function DashboardContent() {
                 status: isExecuting ? 'testing' : workflowState.status,
               }}
               onWorkflowStateChange={updateWorkflowState}
-              onRunTest={executeWorkflow}
+              onRunTest={() => {
+                clearExecutionErrors()
+                executeWorkflow(addExecutionError)
+              }}
               onSave={() => handleSave(nodes, edges)}
               onToggleStatus={handleToggleStatus}
               onManageWorkflows={() => setWorkflowManagerOpen(true)}
@@ -447,7 +472,10 @@ export function DashboardContent() {
             onNodesChange={handleNodesChange}
             onEdgesChange={handleEdgesChange}
             onSave={() => handleSave(nodes, edges)}
-            onRunTest={executeWorkflow}
+            onRunTest={() => {
+              clearExecutionErrors()
+              executeWorkflow(addExecutionError)
+            }}
           />
 
           {/* Validation Panel */}
@@ -460,6 +488,7 @@ export function DashboardContent() {
               console.log('Fix error:', error)
             }}
             hasNodes={nodes.length > 0}
+            executionErrors={executionErrors}
           />
 
           {/* Connection Feedback Toast */}

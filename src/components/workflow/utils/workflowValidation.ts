@@ -4,13 +4,15 @@
  */
 
 import { type Node, type Edge } from '@xyflow/react'
+import { validateEmail } from '@/lib/utils'
 
 export interface ValidationError {
   id: string
   type: 'error' | 'warning' | 'info'
-  category: 'structure' | 'configuration' | 'connection' | 'logic'
+  category: 'structure' | 'configuration' | 'connection' | 'logic' | 'execution'
   message: string
   nodeId?: string
+  nodeLabel?: string
   edgeId?: string
   severity: 'critical' | 'high' | 'medium' | 'low'
   suggestion?: string
@@ -114,6 +116,7 @@ function validateWorkflowStructure(
       category: 'structure',
       message: `Node "${node.data.label}" is not connected to any other nodes`,
       nodeId: node.id,
+      nodeLabel: node.data.label,
       severity: 'medium',
       suggestion: 'Connect this node to other nodes or remove it if not needed'
     })
@@ -132,6 +135,7 @@ function validateWorkflowStructure(
       category: 'structure',
       message: `Node "${node.data.label}" is not reachable from any trigger`,
       nodeId: node.id,
+      nodeLabel: node.data.label,
       severity: 'high',
       suggestion: 'Connect this node to a path that starts from a trigger node'
     })
@@ -209,6 +213,7 @@ function validateEmailTriggerConfig(
       category: 'configuration',
       message: `Email trigger "${node.data.label}" is not configured`,
       nodeId: node.id,
+      nodeLabel: node.data.label,
       severity: 'high',
       suggestion: 'Configure email filters (subject, sender, or keywords)'
     })
@@ -227,6 +232,7 @@ function validateEmailTriggerConfig(
       category: 'configuration',
       message: `Email trigger "${node.data.label}" has no filters configured`,
       nodeId: node.id,
+      nodeLabel: node.data.label,
       severity: 'medium',
       suggestion: 'Add at least one filter to avoid processing all emails'
     })
@@ -240,9 +246,26 @@ function validateEmailTriggerConfig(
       category: 'configuration',
       message: `Email trigger "${node.data.label}" has too many keywords`,
       nodeId: node.id,
+      nodeLabel: node.data.label,
       severity: 'low',
       suggestion: 'Consider reducing keywords for better performance'
     })
+  }
+
+  // Validate sender email format if provided
+  if (sender && sender.trim()) {
+    if (!validateEmail(sender)) {
+      errors.push({
+        id: `invalid-sender-email-${node.id}`,
+        type: 'error',
+        category: 'configuration',
+        message: `Email trigger "${node.data.label}" has an invalid sender email format`,
+        nodeId: node.id,
+        nodeLabel: node.data.label,
+        severity: 'high',
+        suggestion: 'Please enter a valid email address (e.g., example@domain.com)'
+      })
+    }
   }
 }
 
@@ -263,6 +286,7 @@ function validateTrelloActionConfig(
       category: 'configuration',
       message: `Trello action "${node.data.label}" has no board selected`,
       nodeId: node.id,
+      nodeLabel: node.data.label,
       severity: 'high',
       suggestion: 'Select a Trello board for card creation'
     })
@@ -275,6 +299,7 @@ function validateTrelloActionConfig(
       category: 'configuration',
       message: `Trello action "${node.data.label}" has no list selected`,
       nodeId: node.id,
+      nodeLabel: node.data.label,
       severity: 'high',
       suggestion: 'Select a list within the Trello board'
     })
