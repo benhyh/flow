@@ -2,15 +2,24 @@
 
 import React, { useState } from 'react'
 import { Handle, Position, type NodeProps, useReactFlow } from '@xyflow/react'
-import { X } from 'lucide-react'
-import { type BaseNodeData } from './BaseNode'
+import { Ampersand, X } from 'lucide-react'
 import { setConfiguredNode } from '../panels/ConfigPanel'
+
+export interface BaseNodeData {
+  label: string
+  nodeType: string
+  icon: string
+  color: string
+  status?: 'idle' | 'running' | 'success' | 'error'
+  config?: Record<string, unknown>
+}
 
 interface LogicNodeData extends BaseNodeData {
   logicType?: 'condition' | 'filter' | 'delay' | 'split'
   config?: {
-    condition?: string
+    field?: string
     operator?: 'contains' | 'equals' | 'startsWith' | 'endsWith'
+    value?: string
   }
 }
 
@@ -33,87 +42,67 @@ export function LogicNode(props: NodeProps) {
     }
   }
 
+  const getStatusColor = () => {
+    switch (nodeData.status) {
+      case 'running':
+        return 'border-yellow-500 bg-yellow-500/20'
+      case 'success':
+        return 'border-green-500 bg-green-500/20'
+      case 'error':
+        return 'border-red-500 bg-red-500/20'
+      default:
+        return 'border-[#3d3d3d]'
+    }
+  }
+
   return (
     <div 
       className={`
-        relative min-w-[180px] rounded-lg border-2 transition-all duration-200
-        ${selected ? 'ring-2 ring-[#8b5cf6] ring-opacity-50 border-[#8b5cf6]' : 'border-[#3d3d3d]'}
-        bg-[#2d2d2d] hover:border-[#8b5cf6] hover:ring-2 hover:ring-[#8b5cf6] hover:ring-opacity-30 shadow-lg hover:shadow-xl
+        relative w-12 h-12 rounded-full bg-[#2d2d2d] border-2 transition-all duration-200
+        ${selected ? 'ring-2 ring-[#8b5cf6] ring-opacity-50 border-[#8b5cf6]' : getStatusColor()}
+        hover:border-[#8b5cf6] hover:ring-2 hover:ring-[#8b5cf6] hover:ring-opacity-30
+        shadow-lg hover:shadow-xl flex items-center justify-center cursor-pointer
       `}
       onDoubleClick={handleDoubleClick}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
     >
-      {/* Delete Button - Top Right Corner */}
+      {/* Delete Button */}
       {isHovered && (
         <button
           onClick={handleDelete}
-          className="absolute -top-2 -right-2 w-6 h-6 bg-[#8b5cf6] hover:bg-[#7c3aed] rounded-full flex items-center justify-center transition-all duration-200 z-10 shadow-lg hover:shadow-xl"
+          className="absolute -top-1 -right-1 w-4 h-4 bg-[#8b5cf6] hover:bg-[#7c3aed] rounded-full flex items-center justify-center transition-all duration-200 z-10 shadow-lg"
           title="Delete node"
         >
-          <X size={12} className="text-white" />
+          <X size={8} className="text-white" />
         </button>
       )}
+
+      {/* Ampersand Icon */}
+      <Ampersand size={20} className="text-white" />
+
       {/* Target Handle (Input) */}
       <Handle
         type="target"
         position={Position.Left}
-        className="w-3 h-3 !bg-[#8b5cf6]  hover:!bg-[#7c3aed] transition-colors"
+        className="w-2 h-2 !bg-[#8b5cf6] hover:!bg-[#7c3aed] transition-colors !border-0"
       />
-
-      {/* Node Content */}
-      <div className="p-4">
-        {/* Header */}
-        <div className="flex items-center mb-2">
-          <div 
-            className="w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-medium mr-3"
-            style={{ backgroundColor: nodeData.color }}
-          >
-            {nodeData.icon}
-          </div>
-          <div className="flex-1">
-            <div className="text-white font-medium text-sm">{nodeData.label}</div>
-            <div className="text-gray-400 text-xs capitalize">{nodeData.nodeType?.replace('-', ' ')}</div>
-          </div>
-        </div>
-
-        {/* Logic-specific content */}
-        <div className="mt-2">
-          <div className="text-xs text-gray-400 mb-1">Logic Configuration</div>
-          
-          {nodeData.config?.field && nodeData.config?.operator && nodeData.config?.value && (
-            <div className="space-y-1">
-              <div className="text-xs text-gray-300">
-                <span className="text-gray-500">If:</span> {nodeData.config.field} {nodeData.config.operator} "{nodeData.config.value}"
-              </div>
-            </div>
-          )}
-          
-          {(!nodeData.config?.field || !nodeData.config?.operator || !nodeData.config?.value) && (
-            <div className="text-xs text-gray-500 italic">Double-click to configure</div>
-          )}
-        </div>
-      </div>
 
       {/* Multiple Source Handles for branching */}
       <Handle
         type="source"
         position={Position.Right}
         id="true"
-        style={{ top: '40%' }}
-        className="w-3 h-3 !bg-green-500  hover:!bg-green-400 transition-colors"
+        style={{ top: '30%' }}
+        className="w-2 h-2 !bg-green-500 hover:!bg-green-400 transition-colors !border-0"
       />
       <Handle
         type="source"
         position={Position.Right}
         id="false"
-        style={{ top: '60%' }}
-        className="w-3 h-3 !bg-red-500  hover:!bg-red-400 transition-colors"
+        style={{ top: '70%' }}
+        className="w-2 h-2 !bg-red-500 hover:!bg-red-400 transition-colors !border-0"
       />
-      
-      {/* Handle Labels */}
-      <div className="absolute right-[-30px] top-[35%] text-xs text-green-400">✓</div>
-      <div className="absolute right-[-30px] top-[55%] text-xs text-red-400">✗</div>
     </div>
   )
 }
