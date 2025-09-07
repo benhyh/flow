@@ -1,60 +1,113 @@
 'use client'
 
-import React from 'react'
-import { Position, type NodeProps } from '@xyflow/react'
-import { BaseNode, type BaseNodeData } from './BaseNode'
+import React, { useState } from 'react'
+import { Handle, Position, type NodeProps, useReactFlow } from '@xyflow/react'
+import { Tag, Group, X } from 'lucide-react'
+import { setConfiguredNode } from '../panels/ConfigPanel'
+
+export interface BaseNodeData {
+  label: string
+  nodeType: string
+  icon: string
+  color: string
+  status?: 'idle' | 'running' | 'success' | 'error'
+  config?: Record<string, unknown>
+}
 
 interface AINodeData extends BaseNodeData {
   aiType?: 'tagging' | 'classification' | 'sentiment' | 'extraction'
   config?: {
     // AI Tagging
-    tags?: string[]
+    selectedTags?: string[]
     // AI Classification
-    categories?: string[]
+    selectedCategories?: string[]
+    targetType?: string
   }
 }
 
 export function AINode(props: NodeProps) {
-  const { data } = props
+  const { data, id, selected } = props
   const nodeData = data as unknown as AINodeData
+  const { deleteElements } = useReactFlow()
+  const [isHovered, setIsHovered] = useState(false)
+
+  const handleDoubleClick = () => {
+    if (id) {
+      setConfiguredNode(id)
+    }
+  }
+
+  const handleDelete = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (id) {
+      deleteElements({ nodes: [{ id }] })
+    }
+  }
+
+  const getStatusColor = () => {
+    switch (nodeData.status) {
+      case 'running':
+        return 'border-yellow-500 bg-yellow-500/20'
+      case 'success':
+        return 'border-green-500 bg-green-500/20'
+      case 'error':
+        return 'border-red-500 bg-red-500/20'
+      default:
+        return 'border-[#3d3d3d]'
+    }
+  }
+
+  // Determine which icon to show based on nodeType
+  const getIcon = () => {
+    if (nodeData.nodeType === 'ai-tagging') {
+      return <Tag size={20} className="text-white" />
+    }
+    if (nodeData.nodeType === 'ai-classification') {
+      return <Group size={20} className="text-white" />
+    }
+    // Default fallback
+    return <Tag size={20} className="text-white" />
+  }
 
   return (
-    <BaseNode
-      {...props}
-      handlePosition={{ source: Position.Right, target: Position.Left }}
+    <div 
+      className={`
+        relative w-12 h-12 rounded-full bg-[#2d2d2d] border-2 transition-all duration-200
+        ${selected ? 'ring-2 ring-[#8b5cf6] ring-opacity-50 border-[#8b5cf6]' : getStatusColor()}
+        hover:border-[#8b5cf6] hover:ring-2 hover:ring-[#8b5cf6] hover:ring-opacity-30
+        shadow-lg hover:shadow-xl flex items-center justify-center cursor-pointer
+      `}
+      onDoubleClick={handleDoubleClick}
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
     >
-      {/* AI-specific content */}
-      <div className="mt-2">
-        <div className="text-xs text-gray-400 mb-1">AI Configuration</div>
-        
-        {/* AI Processing Indicator */}
-        <div className="flex items-center mb-2">
-          <div className="w-2 h-2 rounded-full bg-[#8b5cf6] animate-pulse mr-2" />
-          <span className="text-xs text-[#8b5cf6]">AI Processing</span>
-        </div>
-        
-        {/* Display AI Tagging configuration */}
-        {nodeData.config?.tags && (
-          <div className="space-y-1">
-            <div className="text-xs text-gray-300">
-              <span className="text-gray-500">Tags:</span> {nodeData.config.tags.join(', ')}
-            </div>
-          </div>
-        )}
-        
-        {/* Display AI Classification configuration */}
-        {nodeData.config?.categories && (
-          <div className="space-y-1">
-            <div className="text-xs text-gray-300">
-              <span className="text-gray-500">Categories:</span> {nodeData.config.categories.join(', ')}
-            </div>
-          </div>
-        )}
-        
-        {!nodeData.config?.tags && !nodeData.config?.categories && (
-          <div className="text-xs text-gray-500 italic">Select node to configure</div>
-        )}
-      </div>
-    </BaseNode>
+      {/* Delete Button */}
+      {isHovered && (
+        <button
+          onClick={handleDelete}
+          className="absolute -top-1 -right-1 w-4 h-4 bg-[#8b5cf6] hover:bg-[#7c3aed] rounded-full flex items-center justify-center transition-all duration-200 z-10 shadow-lg"
+          title="Delete node"
+        >
+          <X size={8} className="text-white" />
+        </button>
+      )}
+
+      {/* AI Icon - Tag or Users based on type */}
+      {getIcon()}
+
+      {/* Target Handle (Input) */}
+      <Handle
+        type="target"
+        position={Position.Left}
+        className="w-2 h-2 !bg-[#8b5cf6] hover:!bg-[#7c3aed] transition-colors !border-0"
+      />
+
+      {/* Source Handle (Output) */}
+      <Handle
+        type="source"
+        position={Position.Right}
+        className="w-2 h-2 !bg-[#8b5cf6] hover:!bg-[#7c3aed] transition-colors !border-0"
+      />
+    </div>
   )
 }

@@ -447,10 +447,15 @@ export function useWorkflowExecution() {
                 duration: 5000
               })
             } else {
-              toast.info('📧 Gmail Trigger: No matching emails found', {
-                description: 'No emails matched your filter criteria (sender, subject, keywords)',
-                duration: 4000
+              console.error(`[Workflow] Gmail trigger found 0 emails - stopping workflow execution`)
+              updateNodeStatus(node.id, 'error', 'No emails found matching criteria')
+              toast.error('📧 Gmail Trigger: No emails found', {
+                description: 'No sender emails found in your Gmail inbox matching the criteria. Please check your email filters and try again.',
+                duration: 6000
               })
+              // Stop workflow execution when 0 emails are found
+              console.log(`[WORKFLOW DEBUG] Stopping execution due to 0 emails found`)
+              break
             }
           } else if (nodeType === 'trello-action' && result.data) {
             // Add detailed logging for Trello actions
@@ -469,7 +474,7 @@ export function useWorkflowExecution() {
             })
           } else {
             console.log(`[Workflow] Node ${nodeName} completed successfully`)
-            toast.success(`✅ Node: ${nodeName} completed`, { duration: 2000 })
+            // Node completed successfully - no notification needed
           }
           completedNodes++
         } else {

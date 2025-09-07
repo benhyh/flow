@@ -50,7 +50,8 @@ cp .env.local.example .env.local
    - OpenAI API key
 
 4. Set up the database schema in Supabase:
-   - Run the SQL in `supabase/schema.sql` in your Supabase SQL editor
+   - Run the migration in `supabase/migrations/001_initial_workflow_schema.sql` in your Supabase SQL editor
+   - See `supabase/README.md` for detailed setup instructions
 
 5. Start the development server:
 
@@ -74,13 +75,24 @@ npm run dev
 src/
 ├── app/                 # Next.js app directory
 │   ├── api/            # API routes
+│   ├── dashboard/      # Dashboard pages
 │   └── globals.css     # Global styles
 ├── lib/                # Utility libraries
-│   ├── supabase.ts     # Supabase client
+│   ├── supabase-client.ts  # Supabase client
+│   ├── database-client.ts  # Database operations
 │   ├── redis.ts        # Redis client
 │   └── types.ts        # TypeScript types
+├── types/              # TypeScript type definitions
+│   └── database.ts     # Database schema types
 └── providers/          # React providers
     └── query-provider.tsx
+
+supabase/
+├── migrations/         # Database migrations
+│   └── 001_initial_workflow_schema.sql
+├── queries/           # Common SQL queries
+│   └── workflow_queries.sql
+└── README.md          # Database documentation
 ```
 
 ## Deployment

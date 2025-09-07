@@ -50,3 +50,9 @@ export type { WorkflowState, WorkflowStatus } from './toolbar/WorkflowToolbar'
 
 // Providers
 export * from './providers'
+
+// Contexts
+export { NodeOperationsProvider, useNodeOperationsContext } from './contexts/NodeOperationsContext'
+
+// Controls
+export { NodeOperationControls } from './controls/NodeOperationControls'

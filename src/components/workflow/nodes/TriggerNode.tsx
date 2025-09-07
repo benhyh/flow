@@ -1,8 +1,18 @@
 'use client'
 
-import React from 'react'
-import { Position, type NodeProps } from '@xyflow/react'
-import { BaseNode, type BaseNodeData } from './BaseNode'
+import React, { useState } from 'react'
+import { Handle, Position, type NodeProps, useReactFlow } from '@xyflow/react'
+import { Mail, X } from 'lucide-react'
+import { setConfiguredNode } from '../panels/ConfigPanel'
+
+export interface BaseNodeData {
+  label: string
+  nodeType: string
+  icon: string
+  color: string
+  status?: 'idle' | 'running' | 'success' | 'error'
+  config?: Record<string, unknown>
+}
 
 interface TriggerNodeData extends BaseNodeData {
   triggerType?: 'email' | 'webhook' | 'schedule'
@@ -16,43 +26,69 @@ interface TriggerNodeData extends BaseNodeData {
 }
 
 export function TriggerNode(props: NodeProps) {
-  const { data } = props
+  const { data, id, selected } = props
   const nodeData = data as unknown as TriggerNodeData
+  const { deleteElements } = useReactFlow()
+  const [isHovered, setIsHovered] = useState(false)
+
+  const handleDoubleClick = () => {
+    if (id) {
+      setConfiguredNode(id)
+    }
+  }
+
+  const handleDelete = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (id) {
+      deleteElements({ nodes: [{ id }] })
+    }
+  }
+
+  const getStatusColor = () => {
+    switch (nodeData.status) {
+      case 'running':
+        return 'border-yellow-500 bg-yellow-500/20'
+      case 'success':
+        return 'border-green-500 bg-green-500/20'
+      case 'error':
+        return 'border-red-500 bg-red-500/20'
+      default:
+        return 'border-[#3d3d3d]'
+    }
+  }
 
   return (
-    <BaseNode
-      {...props}
-      showTargetHandle={false} // Triggers don't have inputs
-      handlePosition={{ source: Position.Right }}
+    <div 
+      className={`
+        relative w-12 h-12 rounded-full bg-[#2d2d2d] border-2 transition-all duration-200
+        ${selected ? 'ring-2 ring-[#8b5cf6] ring-opacity-50 border-[#8b5cf6]' : getStatusColor()}
+        hover:border-[#8b5cf6] hover:ring-2 hover:ring-[#8b5cf6] hover:ring-opacity-30
+        shadow-lg hover:shadow-xl flex items-center justify-center cursor-pointer
+      `}
+      onDoubleClick={handleDoubleClick}
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
     >
-      {/* Trigger-specific content */}
-      <div className="mt-2">
-        <div className="text-xs text-gray-400 mb-1">Trigger Configuration</div>
-        
-        {nodeData.config?.emailFilters && (
-          <div className="space-y-1">
-            {nodeData.config.emailFilters.sender && (
-              <div className="text-xs text-gray-300 truncate">
-                <span className="text-gray-500">From:</span> {nodeData.config.emailFilters.sender}
-              </div>
-            )}
-            {nodeData.config.emailFilters.subject && (
-              <div className="text-xs text-gray-300 truncate">
-                <span className="text-gray-500">Subject:</span> {nodeData.config.emailFilters.subject}
-              </div>
-            )}
-            {nodeData.config.emailFilters.keywords && nodeData.config.emailFilters.keywords.length > 0 && (
-              <div className="text-xs text-gray-300 truncate">
-                <span className="text-gray-500">Keywords:</span> {nodeData.config.emailFilters.keywords.join(', ')}
-              </div>
-            )}
-          </div>
-        )}
-        
-        {!nodeData.config?.emailFilters && (
-          <div className="text-xs text-gray-500 italic">Select node to configure</div>
-        )}
-      </div>
-    </BaseNode>
+      {/* Delete Button */}
+      {isHovered && (
+        <button
+          onClick={handleDelete}
+          className="absolute -top-1 -right-1 w-4 h-4 bg-[#8b5cf6] hover:bg-[#7c3aed] rounded-full flex items-center justify-center transition-all duration-200 z-10 shadow-lg"
+          title="Delete node"
+        >
+          <X size={8} className="text-white" />
+        </button>
+      )}
+
+      {/* Mail Icon */}
+      <Mail size={20} className="text-white" />
+
+      {/* Source Handle (Output) */}
+      <Handle
+        type="source"
+        position={Position.Right}
+        className="w-2 h-2 !bg-[#8b5cf6] hover:!bg-[#7c3aed] transition-colors !border-0"
+      />
+    </div>
   )
 }

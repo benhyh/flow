@@ -11,6 +11,7 @@ import { useTrelloIntegration } from '../hooks/useTrelloIntegration'
 import { useAsanaIntegration } from '../hooks/useAsanaIntegration'
 import { type TrelloList, getTrelloTokenFromStorage } from '@/lib/trello-api'
 import { getAsanaTokensFromStorage } from '@/lib/asana-api'
+import { validateEmail } from '@/lib/utils'
 import { toast } from 'sonner'
 
 // Type for our custom node data
@@ -192,8 +193,34 @@ function EmailTriggerConfig({ config = {}, onUpdate, onClose }: EmailTriggerConf
   const [sender, setSender] = useState(emailFilters?.sender || '')
   const [subject, setSubject] = useState(emailFilters?.subject || '')
   const [keywords, setKeywords] = useState(emailFilters?.keywords?.join(', ') || '')
+  const [senderError, setSenderError] = useState('')
+
+  // Handle sender email change with validation
+  const handleSenderChange = (value: string) => {
+    setSender(value)
+    if (value.trim() && !validateEmail(value)) {
+      setSenderError('Please enter a valid email address')
+    } else {
+      setSenderError('')
+    }
+  }
 
   const handleSave = () => {
+    // Validate email before saving
+    if (sender.trim() && !validateEmail(sender)) {
+      setSenderError('Please enter a valid email address')
+      return
+    }
+
+    // Check if at least one filter is provided
+    const hasFilters = sender.trim() || subject.trim() || keywords.split(',').some((k: string) => k.trim())
+    if (!hasFilters) {
+      toast.error('At least one filter is required', {
+        description: 'Please provide a sender email, subject, or keywords'
+      })
+      return
+    }
+
     onUpdate({
       emailFilters: {
         sender: sender.trim(),
@@ -206,15 +233,26 @@ function EmailTriggerConfig({ config = {}, onUpdate, onClose }: EmailTriggerConf
 
   return (
     <div className="space-y-3">
+      <div className="mb-2">
+        <p className="text-xs text-gray-400">
+          Configure at least one filter to trigger the workflow
+        </p>
+      </div>
+      
       <div>
         <Label htmlFor="sender" className="text-gray-300 text-sm">Sender Email</Label>
         <Input
           id="sender"
           value={sender}
-          onChange={(e) => setSender(e.target.value)}
+          onChange={(e) => handleSenderChange(e.target.value)}
           placeholder="example@domain.com"
-          className="mt-1 bg-[#1d1d1d] border-[#3d3d3d] text-white nodrag h-8"
+          className={`mt-1 bg-[#1d1d1d] border-[#3d3d3d] text-white nodrag h-8 ${
+            senderError ? 'border-red-500' : ''
+          }`}
         />
+        {senderError && (
+          <p className="text-red-400 text-xs mt-1">{senderError}</p>
+        )}
       </div>
       
       <div>
@@ -226,6 +264,7 @@ function EmailTriggerConfig({ config = {}, onUpdate, onClose }: EmailTriggerConf
           placeholder="Important, Urgent, etc."
           className="mt-1 bg-[#1d1d1d] border-[#3d3d3d] text-white nodrag h-8"
         />
+        <p className="text-xs text-gray-500 mt-1">Optional: Filter emails by subject line</p>
       </div>
       
       <div>
@@ -237,11 +276,17 @@ function EmailTriggerConfig({ config = {}, onUpdate, onClose }: EmailTriggerConf
           placeholder="task, project, deadline"
           className="mt-1 bg-[#1d1d1d] border-[#3d3d3d] text-white nodrag h-8"
         />
+        <p className="text-xs text-gray-500 mt-1">Optional: Filter emails containing these keywords</p>
       </div>
       
       <Button 
         onClick={handleSave}
-        className="w-full bg-[#8b5cf6] hover:bg-[#7c3aed] text-white h-8 text-sm"
+        disabled={!!senderError}
+        className={`w-full h-8 text-sm ${
+          senderError 
+            ? 'bg-gray-600 text-gray-400 cursor-not-allowed' 
+            : 'bg-[#8b5cf6] hover:bg-[#7c3aed] text-white'
+        }`}
       >
         Save Configuration
       </Button>
@@ -679,48 +724,109 @@ interface ConditionLogicConfigProps {
 }
 
 function ConditionLogicConfig({ config = {}, onUpdate, onClose }: ConditionLogicConfigProps) {
-  const [condition, setCondition] = useState((config.condition as string) || '')
+  const [field, setField] = useState((config.field as string) || 'email.subject')
   const [operator, setOperator] = useState((config.operator as string) || 'contains')
+  const [value, setValue] = useState((config.value as string) || '')
+
+  // Available fields for condition checking
+  const availableFields = [
+    { value: 'email.subject', label: 'Email Subject' },
+    { value: 'email.body', label: 'Email Body' },
+    { value: 'email.sender', label: 'Email Sender' },
+    { value: 'email.to', label: 'Email To' },
+    { value: 'trigger.data', label: 'Trigger Data' },
+  ]
+
+  // Available operators
+  const operators = [
+    { value: 'contains', label: 'Contains' },
+    { value: 'equals', label: 'Equals' },
+    { value: 'startsWith', label: 'Starts With' },
+    { value: 'endsWith', label: 'Ends With' },
+  ]
 
   const handleSave = () => {
+    if (!value.trim()) {
+      toast.error('Please enter a value to check against')
+      return
+    }
+
     onUpdate({
-      condition: condition.trim(),
-      operator
+      field: field.trim(),
+      operator,
+      value: value.trim()
     })
     onClose() // Close the panel after saving
+    toast.success('Logic condition configured successfully!')
+  }
+
+  // Generate preview text
+  const getPreviewText = () => {
+    if (!value.trim()) return 'Enter a value to see preview'
+    const fieldLabel = availableFields.find(f => f.value === field)?.label || field
+    const operatorLabel = operators.find(o => o.value === operator)?.label || operator
+    return `If "${fieldLabel}" ${operatorLabel.toLowerCase()} "${value}"`
   }
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-4">
       <div>
-        <Label htmlFor="condition" className="text-gray-300 text-sm">Condition</Label>
-        <Input
-          id="condition"
-          value={condition}
-          onChange={(e) => setCondition(e.target.value)}
-          placeholder="email.subject"
-          className="mt-1 bg-[#1d1d1d] border-[#3d3d3d] text-white nodrag h-8"
-        />
+        <Label htmlFor="field" className="text-gray-300 text-sm">Field to Check</Label>
+        <select
+          id="field"
+          value={field}
+          onChange={(e) => setField(e.target.value)}
+          className="mt-1 w-full bg-[#1d1d1d] border border-[#3d3d3d] text-white rounded-md px-3 py-2 nodrag h-9 text-sm"
+        >
+          {availableFields.map((fieldOption) => (
+            <option key={fieldOption.value} value={fieldOption.value}>
+              {fieldOption.label}
+            </option>
+          ))}
+        </select>
       </div>
       
       <div>
-        <Label htmlFor="operator" className="text-gray-300 text-sm">Operator</Label>
+        <Label htmlFor="operator" className="text-gray-300 text-sm">Condition</Label>
         <select
           id="operator"
           value={operator}
           onChange={(e) => setOperator(e.target.value)}
-          className="mt-1 w-full bg-[#1d1d1d] border border-[#3d3d3d] text-white rounded-md px-3 py-1 nodrag h-8 text-sm"
+          className="mt-1 w-full bg-[#1d1d1d] border border-[#3d3d3d] text-white rounded-md px-3 py-2 nodrag h-9 text-sm"
         >
-          <option value="contains">Contains</option>
-          <option value="equals">Equals</option>
-          <option value="startsWith">Starts With</option>
-          <option value="endsWith">Ends With</option>
+          {operators.map((op) => (
+            <option key={op.value} value={op.value}>
+              {op.label}
+            </option>
+          ))}
         </select>
+      </div>
+
+      <div>
+        <Label htmlFor="value" className="text-gray-300 text-sm">Value</Label>
+        <Input
+          id="value"
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          placeholder="Enter value to check for..."
+          className="mt-1 bg-[#1d1d1d] border-[#3d3d3d] text-white nodrag h-9"
+        />
+      </div>
+
+      {/* Preview */}
+      <div className="p-3 bg-[#1a1a1a] border border-[#3d3d3d] rounded-md">
+        <Label className="text-gray-400 text-xs">Preview</Label>
+        <div className="text-sm text-gray-300 mt-1">
+          {getPreviewText()}
+        </div>
+        <div className="text-xs text-gray-500 mt-1">
+          → True path (green) | → False path (red)
+        </div>
       </div>
       
       <Button 
         onClick={handleSave}
-        className="w-full bg-[#8b5cf6] hover:bg-[#7c3aed] text-white h-8 text-sm"
+        className="w-full bg-[#8b5cf6] hover:bg-[#7c3aed] text-white h-9 text-sm"
       >
         Save Configuration
       </Button>
@@ -736,31 +842,191 @@ interface AITaggingConfigProps {
 }
 
 function AITaggingConfig({ config = {}, onUpdate, onClose }: AITaggingConfigProps) {
-  const [tags, setTags] = useState((config.tags as string[])?.join(', ') || '')
+  const [selectedTags, setSelectedTags] = useState<string[]>((config.selectedTags as string[]) || [])
+  const [tagKeywords, setTagKeywords] = useState<Record<string, string>>((config.tagKeywords as Record<string, string>) || {})
+  const [targetType, setTargetType] = useState<string>((config.targetType as string) || 'both')
+
+  // Pre-defined tag library organized by category
+  const tagLibrary = {
+    priority: [
+      { name: 'urgent', label: 'Urgent', keywords: 'urgent, asap, emergency, critical, immediate' },
+      { name: 'normal', label: 'Normal', keywords: 'normal, regular, standard' },
+      { name: 'low', label: 'Low Priority', keywords: 'low, later, whenever' }
+    ],
+    department: [
+      { name: 'support', label: 'Support', keywords: 'support, help, issue, problem, bug' },
+      { name: 'sales', label: 'Sales', keywords: 'sales, purchase, buy, pricing, quote' },
+      { name: 'marketing', label: 'Marketing', keywords: 'marketing, campaign, newsletter, promotion' },
+      { name: 'technical', label: 'Technical', keywords: 'technical, api, integration, development' }
+    ],
+    type: [
+      { name: 'question', label: 'Question', keywords: 'question, how, what, why, when, where' },
+      { name: 'complaint', label: 'Complaint', keywords: 'complaint, unhappy, dissatisfied, terrible' },
+      { name: 'request', label: 'Request', keywords: 'request, please, could you, need' },
+      { name: 'feedback', label: 'Feedback', keywords: 'feedback, suggestion, improve, better' }
+    ]
+  }
+
+  const allTags = [
+    ...tagLibrary.priority,
+    ...tagLibrary.department,
+    ...tagLibrary.type
+  ]
+
+  const handleTagToggle = (tagName: string) => {
+    const newSelectedTags = selectedTags.includes(tagName)
+      ? selectedTags.filter(t => t !== tagName)
+      : [...selectedTags, tagName]
+    
+    setSelectedTags(newSelectedTags)
+
+    // Set default keywords if not already set
+    if (!selectedTags.includes(tagName) && !tagKeywords[tagName]) {
+      const tag = allTags.find(t => t.name === tagName)
+      if (tag) {
+        setTagKeywords(prev => ({ ...prev, [tagName]: tag.keywords }))
+      }
+    }
+  }
+
+  const handleKeywordChange = (tagName: string, keywords: string) => {
+    setTagKeywords(prev => ({ ...prev, [tagName]: keywords }))
+  }
 
   const handleSave = () => {
+    if (selectedTags.length === 0) {
+      toast.error('Please select at least one tag')
+      return
+    }
+
+    // Validate that all selected tags have keywords
+    const missingKeywords = selectedTags.filter(tag => !tagKeywords[tag]?.trim())
+    if (missingKeywords.length > 0) {
+      toast.error(`Please set keywords for: ${missingKeywords.join(', ')}`)
+      return
+    }
+
     onUpdate({
-      tags: tags.split(',').map((t: string) => t.trim()).filter((t: string) => t)
+      selectedTags,
+      tagKeywords,
+      targetType
     })
-    onClose() // Close the panel after saving
+    onClose()
+    toast.success('AI tagging configured successfully!')
+  }
+
+  const renderTagCategory = (categoryName: string, tags: typeof tagLibrary.priority) => (
+    <div key={categoryName} className="space-y-2">
+      <Label className="text-gray-400 text-xs uppercase">{categoryName}</Label>
+      <div className="grid grid-cols-2 gap-2">
+        {tags.map((tag) => (
+          <label
+            key={tag.name}
+            className={`flex items-center space-x-2 p-2 rounded border cursor-pointer transition-colors ${
+              selectedTags.includes(tag.name)
+                ? 'border-[#8b5cf6] bg-[#8b5cf6]/10'
+                : 'border-[#3d3d3d] hover:border-[#5d5d5d]'
+            }`}
+          >
+            <input
+              type="checkbox"
+              checked={selectedTags.includes(tag.name)}
+              onChange={() => handleTagToggle(tag.name)}
+              className="w-4 h-4 text-[#8b5cf6] bg-[#1d1d1d] border-[#3d3d3d] rounded focus:ring-[#8b5cf6]"
+            />
+            <span className="text-sm text-gray-300">{tag.label}</span>
+          </label>
+        ))}
+      </div>
+    </div>
+  )
+
+  // Get formatted preview based on target type
+  const getTargetPreview = () => {
+    if (selectedTags.length === 0) return 'No tags selected'
+    
+    switch (targetType) {
+      case 'trello':
+        return `Trello Labels: ${selectedTags.map(tag => `[${tag}]`).join(' ')}`
+      case 'asana':
+        return `Asana Custom Fields: ${selectedTags.map(tag => `${tag}=true`).join(', ')}`
+      case 'both':
+        return `Both Systems: ${selectedTags.join(', ')}`
+      default:
+        return selectedTags.join(', ')
+    }
   }
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-4 max-h-96 overflow-y-auto">
+      {/* Target Type Selection */}
       <div>
-        <Label htmlFor="tags" className="text-gray-300 text-sm">Available Tags (comma-separated)</Label>
-        <Input
-          id="tags"
-          value={tags}
-          onChange={(e) => setTags(e.target.value)}
-          placeholder="urgent, important, personal, work"
-          className="mt-1 bg-[#1d1d1d] border-[#3d3d3d] text-white nodrag h-8"
-        />
+        <Label className="text-gray-300 text-sm">Target Action Type</Label>
+        <select
+          value={targetType}
+          onChange={(e) => setTargetType(e.target.value)}
+          className="mt-1 w-full bg-[#1d1d1d] border border-[#3d3d3d] text-white rounded-md px-3 py-2 nodrag h-9 text-sm"
+        >
+          <option value="both">Both (Trello & Asana)</option>
+          <option value="trello">Trello Only</option>
+          <option value="asana">Asana Only</option>
+        </select>
+        <div className="text-xs text-gray-500 mt-1">
+          {targetType === 'trello' && 'Tags will be converted to Trello labels'}
+          {targetType === 'asana' && 'Tags will be stored as Asana custom fields'}
+          {targetType === 'both' && 'Tags will be formatted for both systems'}
+        </div>
       </div>
+
+      <div>
+        <Label className="text-gray-300 text-sm">Select Tags to Apply</Label>
+        <div className="mt-2 space-y-4">
+          {Object.entries(tagLibrary).map(([categoryName, tags]) =>
+            renderTagCategory(categoryName, tags)
+          )}
+        </div>
+      </div>
+
+      {/* Keyword Configuration for Selected Tags */}
+      {selectedTags.length > 0 && (
+        <div className="space-y-3">
+          <Label className="text-gray-300 text-sm">Keyword Rules</Label>
+          {selectedTags.map((tagName) => {
+            const tag = allTags.find(t => t.name === tagName)
+            return (
+              <div key={tagName} className="space-y-1">
+                <Label className="text-gray-400 text-xs">{tag?.label} Keywords</Label>
+                <Input
+                  value={tagKeywords[tagName] || ''}
+                  onChange={(e) => handleKeywordChange(tagName, e.target.value)}
+                  placeholder="Enter keywords separated by commas..."
+                  className="bg-[#1d1d1d] border-[#3d3d3d] text-white nodrag h-8 text-sm"
+                />
+              </div>
+            )
+          })}
+        </div>
+      )}
+
+      {/* Preview */}
+      {selectedTags.length > 0 && (
+        <div className="p-3 bg-[#1a1a1a] border border-[#3d3d3d] rounded-md">
+          <Label className="text-gray-400 text-xs">Preview</Label>
+          <div className="text-sm text-gray-300 mt-1">
+            Will apply tags: {selectedTags.map(tag => allTags.find(t => t.name === tag)?.label).join(', ')}
+          </div>
+          <div className="text-xs text-gray-500 mt-1">
+            Based on keyword matching in email content
+          </div>
+          <div className="text-xs text-blue-400 mt-2 p-2 bg-blue-900/20 rounded border border-blue-700/30">
+            <strong>Target Format:</strong> {getTargetPreview()}
+          </div>
+        </div>
+      )}
       
       <Button 
         onClick={handleSave}
-        className="w-full bg-[#8b5cf6] hover:bg-[#7c3aed] text-white h-8 text-sm"
+        className="w-full bg-[#8b5cf6] hover:bg-[#7c3aed] text-white h-9 text-sm"
       >
         Save Configuration
       </Button>
@@ -776,31 +1042,189 @@ interface AIClassificationConfigProps {
 }
 
 function AIClassificationConfig({ config = {}, onUpdate, onClose }: AIClassificationConfigProps) {
-  const [categories, setCategories] = useState((config.categories as string[])?.join(', ') || '')
+  const [selectedCategories, setSelectedCategories] = useState<string[]>((config.selectedCategories as string[]) || [])
+  const [categoryKeywords, setCategoryKeywords] = useState<Record<string, string>>((config.categoryKeywords as Record<string, string>) || {})
+  const [targetType, setTargetType] = useState<string>((config.targetType as string) || 'both')
+
+  // Pre-defined classification categories
+  const categoryLibrary = {
+    support: [
+      { name: 'technical', label: 'Technical Support', keywords: 'technical, api, bug, error, code, integration' },
+      { name: 'billing', label: 'Billing Support', keywords: 'billing, invoice, payment, charge, subscription' },
+      { name: 'general', label: 'General Support', keywords: 'help, question, issue, problem, support' }
+    ],
+    sales: [
+      { name: 'lead', label: 'New Lead', keywords: 'interested, pricing, demo, trial, purchase' },
+      { name: 'existing-customer', label: 'Existing Customer', keywords: 'upgrade, renewal, additional, expand' },
+      { name: 'inquiry', label: 'General Inquiry', keywords: 'information, learn more, features, capabilities' }
+    ],
+    content: [
+      { name: 'email', label: 'Email Content', keywords: 'email, message, correspondence' },
+      { name: 'document', label: 'Document', keywords: 'document, file, attachment, pdf' },
+      { name: 'link', label: 'Link/URL', keywords: 'link, url, website, http, www' }
+    ]
+  }
+
+  const allCategories = [
+    ...categoryLibrary.support,
+    ...categoryLibrary.sales,
+    ...categoryLibrary.content
+  ]
+
+  const handleCategoryToggle = (categoryName: string) => {
+    const newSelectedCategories = selectedCategories.includes(categoryName)
+      ? selectedCategories.filter(c => c !== categoryName)
+      : [...selectedCategories, categoryName]
+    
+    setSelectedCategories(newSelectedCategories)
+
+    // Set default keywords if not already set
+    if (!selectedCategories.includes(categoryName) && !categoryKeywords[categoryName]) {
+      const category = allCategories.find(c => c.name === categoryName)
+      if (category) {
+        setCategoryKeywords(prev => ({ ...prev, [categoryName]: category.keywords }))
+      }
+    }
+  }
+
+  const handleKeywordChange = (categoryName: string, keywords: string) => {
+    setCategoryKeywords(prev => ({ ...prev, [categoryName]: keywords }))
+  }
 
   const handleSave = () => {
+    if (selectedCategories.length === 0) {
+      toast.error('Please select at least one category')
+      return
+    }
+
+    // Validate that all selected categories have keywords
+    const missingKeywords = selectedCategories.filter(category => !categoryKeywords[category]?.trim())
+    if (missingKeywords.length > 0) {
+      toast.error(`Please set keywords for: ${missingKeywords.join(', ')}`)
+      return
+    }
+
     onUpdate({
-      categories: categories.split(',').map((c: string) => c.trim()).filter((c: string) => c)
+      selectedCategories,
+      categoryKeywords,
+      targetType
     })
-    onClose() // Close the panel after saving
+    onClose()
+    toast.success('AI classification configured successfully!')
+  }
+
+  const renderCategoryGroup = (groupName: string, categories: typeof categoryLibrary.support) => (
+    <div key={groupName} className="space-y-2">
+      <Label className="text-gray-400 text-xs uppercase">{groupName}</Label>
+      <div className="space-y-2">
+        {categories.map((category) => (
+          <label
+            key={category.name}
+            className={`flex items-center space-x-2 p-2 rounded border cursor-pointer transition-colors ${
+              selectedCategories.includes(category.name)
+                ? 'border-[#8b5cf6] bg-[#8b5cf6]/10'
+                : 'border-[#3d3d3d] hover:border-[#5d5d5d]'
+            }`}
+          >
+            <input
+              type="checkbox"
+              checked={selectedCategories.includes(category.name)}
+              onChange={() => handleCategoryToggle(category.name)}
+              className="w-4 h-4 text-[#8b5cf6] bg-[#1d1d1d] border-[#3d3d3d] rounded focus:ring-[#8b5cf6]"
+            />
+            <span className="text-sm text-gray-300">{category.label}</span>
+          </label>
+        ))}
+      </div>
+    </div>
+  )
+
+  // Get formatted preview based on target type
+  const getTargetPreview = () => {
+    if (selectedCategories.length === 0) return 'No categories selected'
+    
+    switch (targetType) {
+      case 'trello':
+        return `Trello Labels: ${selectedCategories.map(cat => `[${cat}]`).join(' ')}`
+      case 'asana':
+        return `Asana Custom Fields: ${selectedCategories.map(cat => `category_${cat}=true`).join(', ')}`
+      case 'both':
+        return `Both Systems: ${selectedCategories.join(', ')}`
+      default:
+        return selectedCategories.join(', ')
+    }
   }
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-4 max-h-96 overflow-y-auto">
+      {/* Target Type Selection */}
       <div>
-        <Label htmlFor="categories" className="text-gray-300 text-sm">Classification Categories (comma-separated)</Label>
-        <Input
-          id="categories"
-          value={categories}
-          onChange={(e) => setCategories(e.target.value)}
-          placeholder="support, sales, marketing, technical"
-          className="mt-1 bg-[#1d1d1d] border-[#3d3d3d] text-white nodrag h-8"
-        />
+        <Label className="text-gray-300 text-sm">Target Action Type</Label>
+        <select
+          value={targetType}
+          onChange={(e) => setTargetType(e.target.value)}
+          className="mt-1 w-full bg-[#1d1d1d] border border-[#3d3d3d] text-white rounded-md px-3 py-2 nodrag h-9 text-sm"
+        >
+          <option value="both">Both (Trello & Asana)</option>
+          <option value="trello">Trello Only</option>
+          <option value="asana">Asana Only</option>
+        </select>
+        <div className="text-xs text-gray-500 mt-1">
+          {targetType === 'trello' && 'Categories will be converted to Trello labels'}
+          {targetType === 'asana' && 'Categories will be stored as Asana custom fields'}
+          {targetType === 'both' && 'Categories will be formatted for both systems'}
+        </div>
       </div>
+
+      <div>
+        <Label className="text-gray-300 text-sm">Select Categories</Label>
+        <div className="mt-2 space-y-4">
+          {Object.entries(categoryLibrary).map(([groupName, categories]) =>
+            renderCategoryGroup(groupName, categories)
+          )}
+        </div>
+      </div>
+
+      {/* Keyword Configuration for Selected Categories */}
+      {selectedCategories.length > 0 && (
+        <div className="space-y-3">
+          <Label className="text-gray-300 text-sm">Classification Rules</Label>
+          {selectedCategories.map((categoryName) => {
+            const category = allCategories.find(c => c.name === categoryName)
+            return (
+              <div key={categoryName} className="space-y-1">
+                <Label className="text-gray-400 text-xs">{category?.label} Keywords</Label>
+                <Input
+                  value={categoryKeywords[categoryName] || ''}
+                  onChange={(e) => handleKeywordChange(categoryName, e.target.value)}
+                  placeholder="Enter keywords separated by commas..."
+                  className="bg-[#1d1d1d] border-[#3d3d3d] text-white nodrag h-8 text-sm"
+                />
+              </div>
+            )
+          })}
+        </div>
+      )}
+
+      {/* Preview */}
+      {selectedCategories.length > 0 && (
+        <div className="p-3 bg-[#1a1a1a] border border-[#3d3d3d] rounded-md">
+          <Label className="text-gray-400 text-xs">Preview</Label>
+          <div className="text-sm text-gray-300 mt-1">
+            Will classify into: {selectedCategories.map(cat => allCategories.find(c => c.name === cat)?.label).join(', ')}
+          </div>
+          <div className="text-xs text-gray-500 mt-1">
+            Based on keyword matching in email content
+          </div>
+          <div className="text-xs text-blue-400 mt-2 p-2 bg-blue-900/20 rounded border border-blue-700/30">
+            <strong>Target Format:</strong> {getTargetPreview()}
+          </div>
+        </div>
+      )}
       
       <Button 
         onClick={handleSave}
-        className="w-full bg-[#8b5cf6] hover:bg-[#7c3aed] text-white h-8 text-sm"
+        className="w-full bg-[#8b5cf6] hover:bg-[#7c3aed] text-white h-9 text-sm"
       >
         Save Configuration
       </Button>
