@@ -1,9 +1,14 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
 import { type Node, type Edge } from '@xyflow/react'
 import { type WorkflowState, type WorkflowStatus } from '../toolbar/WorkflowToolbar'
-import { saveWorkflow, loadWorkflow } from '@/lib/workflow-storage'
+import { workflowService } from '@/lib/services/WorkflowService'
 import { validateWorkflow, type ValidationResult } from '../utils/workflowValidation'
 import { toast } from 'sonner'
+
+// Helper function to validate UUID format
+const isValidUUID = (id: string): boolean => {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)
+}
 
 // Default workflow state
 const defaultWorkflowState: WorkflowState = {
@@ -20,17 +25,19 @@ export function useWorkflowState(initialState?: Partial<WorkflowState>) {
   })
 
   const [lastValidation, setLastValidation] = useState<ValidationResult | null>(null)
-  const [autoSaveEnabled, setAutoSaveEnabled] = useState(true)
+  const [autoSaveEnabled, setAutoSaveEnabled] = useState(false) // Disabled for MVP - manual saves only
+  const [isSaving, setIsSaving] = useState(false)
+  const [syncStatus, setSyncStatus] = useState<'idle' | 'syncing' | 'synced' | 'error'>('idle')
   const mountedRef = useRef(true)
 
-  // Generate ID if not provided (only once on mount)
-  useEffect(() => {
-    if (!workflowState.id) {
-      const id = `workflow_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
-      setWorkflowState(prev => ({ ...prev, id }))
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []) // Empty dependency array to run only once
+  // Don't generate local IDs - let Supabase generate UUIDs when saving
+  // useEffect(() => {
+  //   if (!workflowState.id) {
+  //     const id = `workflow_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+  //     setWorkflowState(prev => ({ ...prev, id }))
+  //   }
+  //   // eslint-disable-next-line react-hooks/exhaustive-deps
+  // }, []) // Empty dependency array to run only once
 
   // Update workflow state
   const updateWorkflowState = useCallback((updates: Partial<WorkflowState>) => {
@@ -82,14 +89,19 @@ export function useWorkflowState(initialState?: Partial<WorkflowState>) {
     }, 3000) // 3 second test simulation
   }, [workflowState.status, updateWorkflowState])
 
-  // Handle save with validation and storage
+  // Handle save with validation and direct Supabase storage
   const handleSave = useCallback(async (
     nodes: Node[], 
     edges: Edge[], 
     description?: string,
     showToast: boolean = true
   ) => {
+    if (isSaving) return false // Prevent concurrent saves
+    
     try {
+      setIsSaving(true)
+      setSyncStatus('syncing')
+      
       // Validate before saving
       const validation = validateCurrentWorkflow(nodes, edges)
       
@@ -97,11 +109,40 @@ export function useWorkflowState(initialState?: Partial<WorkflowState>) {
         toast.error('Cannot save workflow with errors', {
           description: `${validation.errors.length} error(s) need to be fixed first`
         })
+        setSyncStatus('error')
         return false
       }
 
-      // Save to localStorage
-      const savedWorkflow = saveWorkflow(nodes, edges, workflowState, description)
+      // Save directly to Supabase
+      let savedWorkflow
+      
+      // Check if we have a valid UUID (Supabase-generated) or need to create new
+      const isSupabaseId = workflowState.id && workflowState.id.trim() !== '' && isValidUUID(workflowState.id)
+      
+      console.log(`[useWorkflowState] Workflow ID: "${workflowState.id}", Is Supabase ID: ${isSupabaseId}`)
+      
+      if (isSupabaseId) {
+        // Update existing workflow in Supabase
+        console.log(`[useWorkflowState] Updating existing workflow in Supabase: ${workflowState.id}`)
+        savedWorkflow = await workflowService.updateWorkflow(workflowState.id, {
+          name: workflowState.name,
+          description: description || workflowState.description,
+          nodes,
+          edges,
+          is_active: workflowState.status === 'active'
+        })
+      } else {
+        // Create new workflow in Supabase (no ID or invalid ID)
+        console.log(`[useWorkflowState] Creating new workflow in Supabase (current ID: "${workflowState.id}")`)
+        savedWorkflow = await workflowService.createWorkflow({
+          name: workflowState.name,
+          description: description || workflowState.description,
+          nodes,
+          edges,
+          is_active: workflowState.status === 'active',
+          validate: false // Already validated above
+        })
+      }
       
       // Update state with saved workflow info
       updateWorkflowState({ 
@@ -110,35 +151,65 @@ export function useWorkflowState(initialState?: Partial<WorkflowState>) {
         name: savedWorkflow.name
       })
 
+      setSyncStatus('synced')
+      
       if (showToast) {
         toast.success('Workflow saved successfully!', {
-          description: `Saved "${savedWorkflow.name}" v${savedWorkflow.version}`
+          description: `"${savedWorkflow.name}" has been saved to Supabase`
         })
       }
 
       return true
     } catch (error) {
-      console.error('Error saving workflow:', error)
+      console.error('Supabase error saving workflow:', error)
+      setSyncStatus('error')
+      
       if (showToast) {
+        const errorMessage = error instanceof Error ? error.message : 'Failed to save workflow to Supabase'
+        
         toast.error('Failed to save workflow', {
-          description: error instanceof Error ? error.message : 'Unknown error occurred'
+          description: errorMessage,
+          duration: 8000 // Longer duration for error messages
         })
       }
-      return false
+      
+      // Re-throw error to let calling code handle it
+      throw error
+    } finally {
+      setIsSaving(false)
+      // Reset sync status after 3 seconds
+      setTimeout(() => setSyncStatus('idle'), 3000)
     }
-  }, [workflowState, updateWorkflowState, validateCurrentWorkflow])
+  }, [workflowState, updateWorkflowState, validateCurrentWorkflow, isSaving])
 
   // Auto-save functionality
   const handleAutoSave = useCallback(async (
     nodes: Node[], 
     edges: Edge[]
   ) => {
-    if (!autoSaveEnabled || !workflowState.id) return
+    console.log('[useWorkflowState] handleAutoSave called:', {
+      autoSaveEnabled,
+      workflowStateId: workflowState.id,
+      nodeCount: nodes.length,
+      edgeCount: edges.length
+    })
 
+    if (!autoSaveEnabled) {
+      console.log('[useWorkflowState] Auto-save disabled, skipping')
+      return
+    }
+
+    // Auto-save should work even with empty IDs (for new workflows)
+    // The handleSave function will handle the create vs update logic
+
+    console.log('[useWorkflowState] Proceeding with auto-save...')
     try {
       await handleSave(nodes, edges, undefined, false) // Silent save
+      console.log('[useWorkflowState] Auto-save completed successfully')
     } catch (error) {
-      console.error('Auto-save failed:', error)
+      console.error('[useWorkflowState] Auto-save failed - Supabase error:', error)
+      // Don't show toast for auto-save failures, but log them
+      setSyncStatus('error')
     }
   }, [autoSaveEnabled, workflowState.id, handleSave])
 
@@ -164,26 +235,31 @@ export function useWorkflowState(initialState?: Partial<WorkflowState>) {
     updateWorkflowState({ status: newStatus })
   }, [workflowState.status, updateWorkflowState])
 
-  // Load workflow from storage
-  const loadWorkflowFromStorage = useCallback((workflowId: string) => {
+  // Load workflow from Supabase (for future use)
+  const loadWorkflowFromStorage = useCallback(async (workflowId: string) => {
     try {
-      const storedWorkflow = loadWorkflow(workflowId)
-      if (storedWorkflow) {
-        setWorkflowState(storedWorkflow.state)
-        toast.success('Workflow loaded successfully!', {
-          description: `Loaded "${storedWorkflow.name}" v${storedWorkflow.version}`
-        })
-        return {
-          nodes: storedWorkflow.nodes,
-          edges: storedWorkflow.edges,
-          state: storedWorkflow.state
-        }
+      const storedWorkflow = await workflowService.getWorkflow(workflowId)
+      const workflowState: WorkflowState = {
+        id: storedWorkflow.id,
+        name: storedWorkflow.name,
+        status: storedWorkflow.is_active ? 'active' : 'draft',
+        isValid: true,
+        validationErrors: []
       }
-      return null
+      
+      setWorkflowState(workflowState)
+      toast.success('Workflow loaded successfully!', {
+        description: `"${storedWorkflow.name}" loaded from Supabase`
+      })
+      return {
+        nodes: storedWorkflow.nodes,
+        edges: storedWorkflow.edges,
+        state: workflowState
+      }
     } catch (error) {
-      console.error('Error loading workflow:', error)
+      console.error('Supabase error loading workflow:', error)
       toast.error('Failed to load workflow', {
-        description: error instanceof Error ? error.message : 'Unknown error occurred'
+        description: error instanceof Error ? error.message : 'Unable to load workflow from Supabase'
       })
       return null
     }
@@ -193,7 +269,7 @@ export function useWorkflowState(initialState?: Partial<WorkflowState>) {
   const resetWorkflowState = useCallback(() => {
     setWorkflowState({
       ...defaultWorkflowState,
-      id: `workflow_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+      id: '' // Clear ID - let Supabase generate UUID when saving
     })
     setLastValidation(null)
   }, [])
@@ -205,10 +281,9 @@ export function useWorkflowState(initialState?: Partial<WorkflowState>) {
 
   // Create new workflow
   const createNewWorkflow = useCallback((name?: string) => {
-    const id = `workflow_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
     const newState: WorkflowState = {
       ...defaultWorkflowState,
-      id,
+      id: '', // Let Supabase generate UUID when saving
       name: name || 'Untitled Workflow'
     }
     setWorkflowState(newState)
@@ -228,6 +303,8 @@ export function useWorkflowState(initialState?: Partial<WorkflowState>) {
     workflowState: { ...workflowState, lastValidation },
     lastValidation,
     autoSaveEnabled,
+    isSaving,
+    syncStatus,
     
     // Actions
     updateWorkflowState,

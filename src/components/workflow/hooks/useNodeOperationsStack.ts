@@ -29,6 +29,10 @@ function generateSessionId(): string {
 
 // Get or create session ID
 function getSessionId(): string {
+  if (typeof window === 'undefined') {
+    return generateSessionId()
+  }
+  
   let sessionId = sessionStorage.getItem(SESSION_ID_KEY)
   if (!sessionId) {
     sessionId = generateSessionId()
@@ -43,6 +47,8 @@ export function useNodeOperationsStack() {
 
   // Load operations from session storage on mount
   useEffect(() => {
+    if (typeof window === 'undefined') return
+    
     try {
       const stored = sessionStorage.getItem(NODE_OPERATIONS_KEY)
       if (stored) {
@@ -60,6 +66,8 @@ export function useNodeOperationsStack() {
 
   // Save operations to session storage
   const saveToSessionStorage = useCallback((ops: NodeOperation[]) => {
+    if (typeof window === 'undefined') return
+    
     try {
       // Get all operations from storage
       const stored = sessionStorage.getItem(NODE_OPERATIONS_KEY)
