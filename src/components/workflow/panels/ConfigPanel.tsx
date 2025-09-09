@@ -13,6 +13,7 @@ import { type TrelloList, getTrelloTokenFromStorage } from '@/lib/trello-api'
 import { getAsanaTokensFromStorage } from '@/lib/asana-api'
 import { validateEmail } from '@/lib/utils'
 import { toast } from 'sonner'
+import WorkflowDatabaseClient from '@/lib/database-client'
 
 // Type for our custom node data
 interface CustomNodeData {
@@ -35,7 +36,11 @@ export const setConfiguredNode = (nodeId: string | null) => {
 // Function to get the configured node
 export const getConfiguredNode = () => configuredNodeId
 
-export function ConfigPanel() {
+interface ConfigPanelProps {
+  currentWorkflowId?: string
+}
+
+export function ConfigPanel({ currentWorkflowId }: ConfigPanelProps) {
   const { updateNodeData, getNodes } = useReactFlow()
   const [configuredNode, setConfiguredNodeState] = useState<Node | null>(null)
   
@@ -63,11 +68,240 @@ export function ConfigPanel() {
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 })
   const panelRef = useRef<HTMLDivElement>(null)
   
-  const handleConfigUpdate = useCallback((selectedNodeId: string, nodeData: CustomNodeData, newConfig: Record<string, unknown>) => {
+  const handleConfigUpdate = useCallback(async (selectedNodeId: string, nodeData: CustomNodeData, newConfig: Record<string, unknown>) => {
+    // Update React Flow state immediately for UI responsiveness
     updateNodeData(selectedNodeId, {
       ...nodeData,
       config: { ...nodeData.config, ...newConfig }
     })
+
+    // Save configuration to database
+    console.log('🔧 [ConfigPanel] Saving node configuration to database:', {
+      nodeId: selectedNodeId,
+      nodeType: nodeData.nodeType,
+      config: newConfig
+    })
+
+    try {
+      // Map React Flow node types to database node types (same as DashboardContent)
+      const nodeTypeMapping: Record<string, string> = {
+        'email-trigger': 'trigger',
+        'webhook-trigger': 'trigger',
+        'schedule-trigger': 'trigger',
+        'trello-action': 'trello-action',
+        'asana-action': 'asana-action',
+        'gmail-action': 'gmail-action',
+        'condition-logic': 'logic',
+        'ai-tagging': 'ai-tagging',
+        'ai-classification': 'ai-classification'
+      }
+
+      const dbNodeType = nodeTypeMapping[nodeData.nodeType] || nodeData.nodeType
+
+      console.log('🔄 [ConfigPanel] Node type mapping:', {
+        reactFlowNodeType: nodeData.nodeType,
+        databaseNodeType: dbNodeType
+      })
+
+      // Check if configuration already exists
+      let existingConfig: any = null
+      let result: any = { data: null, error: null }
+
+      console.log('🔍 [ConfigPanel] Checking for existing configuration:', {
+        nodeId: selectedNodeId,
+        nodeType: dbNodeType
+      })
+
+      // Check for existing configuration
+      switch (dbNodeType) {
+        case 'trigger':
+          const triggerCheck = await WorkflowDatabaseClient.getTriggerConfig(selectedNodeId)
+          existingConfig = triggerCheck.data
+          break
+        case 'trello-action':
+          const trelloCheck = await WorkflowDatabaseClient.getTrelloConfig(selectedNodeId)
+          existingConfig = trelloCheck.data
+          break
+        case 'asana-action':
+          const asanaCheck = await WorkflowDatabaseClient.getAsanaConfig(selectedNodeId)
+          existingConfig = asanaCheck.data
+          break
+        case 'gmail-action':
+          const gmailCheck = await WorkflowDatabaseClient.getGmailConfig(selectedNodeId)
+          existingConfig = gmailCheck.data
+          break
+        case 'ai-tagging':
+        case 'ai-classification':
+          const aiCheck = await WorkflowDatabaseClient.getAIConfig(selectedNodeId)
+          existingConfig = aiCheck.data
+          break
+        case 'logic':
+          const logicCheck = await WorkflowDatabaseClient.getLogicConfig(selectedNodeId)
+          existingConfig = logicCheck.data
+          break
+      }
+
+      const isUpdate = existingConfig !== null
+      console.log('📝 [ConfigPanel] Configuration operation:', {
+        nodeId: selectedNodeId,
+        operation: isUpdate ? 'UPDATE' : 'CREATE',
+        existingConfig: existingConfig ? 'Found' : 'Not found'
+      })
+
+      // Create or update configuration based on node type
+      switch (dbNodeType) {
+        case 'trigger':
+          if (isUpdate) {
+            result = await WorkflowDatabaseClient.updateTriggerConfig(selectedNodeId, {
+              trigger_type: newConfig.triggerType || 'email',
+              email_filters: newConfig.emailFilters || {},
+              webhook_url: newConfig.webhookUrl,
+              schedule_cron: newConfig.scheduleCron
+            })
+          } else {
+            result = await WorkflowDatabaseClient.createTriggerConfig({
+              node_id: selectedNodeId,
+              trigger_type: newConfig.triggerType || 'email',
+              email_filters: newConfig.emailFilters || {},
+              webhook_url: newConfig.webhookUrl,
+              schedule_cron: newConfig.scheduleCron
+            })
+          }
+          break
+
+        case 'trello-action':
+          if (isUpdate) {
+            result = await WorkflowDatabaseClient.updateTrelloConfig(selectedNodeId, {
+              action: newConfig.action || 'create_card',
+              board_id: newConfig.boardId,
+              list_id: newConfig.listId,
+              card_name: newConfig.cardName,
+              description: newConfig.description,
+              due_date: newConfig.dueDate,
+              labels: newConfig.labels || []
+            })
+          } else {
+            result = await WorkflowDatabaseClient.createTrelloConfig({
+              node_id: selectedNodeId,
+              action: newConfig.action || 'create_card',
+              board_id: newConfig.boardId,
+              list_id: newConfig.listId,
+              card_name: newConfig.cardName,
+              description: newConfig.description,
+              due_date: newConfig.dueDate,
+              labels: newConfig.labels || []
+            })
+          }
+          break
+
+        case 'asana-action':
+          if (isUpdate) {
+            result = await WorkflowDatabaseClient.updateAsanaConfig(selectedNodeId, {
+              action: newConfig.action || 'create_task',
+              project_gid: newConfig.projectGid,
+              task_name: newConfig.taskName,
+              notes: newConfig.notes,
+              assignee_email: newConfig.assigneeEmail,
+              due_date: newConfig.dueDate,
+              tags: newConfig.tags || []
+            })
+          } else {
+            result = await WorkflowDatabaseClient.createAsanaConfig({
+              node_id: selectedNodeId,
+              action: newConfig.action || 'create_task',
+              project_gid: newConfig.projectGid,
+              task_name: newConfig.taskName,
+              notes: newConfig.notes,
+              assignee_email: newConfig.assigneeEmail,
+              due_date: newConfig.dueDate,
+              tags: newConfig.tags || []
+            })
+          }
+          break
+
+        case 'gmail-action':
+          if (isUpdate) {
+            result = await WorkflowDatabaseClient.updateGmailConfig(selectedNodeId, {
+              action: newConfig.action || 'send_email',
+              to_email: newConfig.toEmail,
+              cc_email: newConfig.ccEmail,
+              subject: newConfig.subject,
+              body: newConfig.body,
+              attachments: newConfig.attachments || []
+            })
+          } else {
+            result = await WorkflowDatabaseClient.createGmailConfig({
+              node_id: selectedNodeId,
+              action: newConfig.action || 'send_email',
+              to_email: newConfig.toEmail,
+              cc_email: newConfig.ccEmail,
+              subject: newConfig.subject,
+              body: newConfig.body,
+              attachments: newConfig.attachments || []
+            })
+          }
+          break
+
+        case 'ai-tagging':
+        case 'ai-classification':
+          if (isUpdate) {
+            result = await WorkflowDatabaseClient.updateAIConfig(selectedNodeId, {
+              ai_type: nodeData.nodeType as 'ai-tagging' | 'ai-classification',
+              action: newConfig.action || 'generate_text',
+              prompt_template: newConfig.promptTemplate || '',
+              model: newConfig.model || 'gpt-3.5-turbo',
+              max_tokens: newConfig.maxTokens || 1000,
+              temperature: newConfig.temperature || 0.7
+            })
+          } else {
+            result = await WorkflowDatabaseClient.createAIConfig({
+              node_id: selectedNodeId,
+              ai_type: nodeData.nodeType as 'ai-tagging' | 'ai-classification',
+              action: newConfig.action || 'generate_text',
+              prompt_template: newConfig.promptTemplate || '',
+              model: newConfig.model || 'gpt-3.5-turbo',
+              max_tokens: newConfig.maxTokens || 1000,
+              temperature: newConfig.temperature || 0.7
+            })
+          }
+          break
+
+        case 'logic':
+          if (isUpdate) {
+            result = await WorkflowDatabaseClient.updateLogicConfig(selectedNodeId, {
+              logic_type: newConfig.logicType || 'condition',
+              field: newConfig.field,
+              operator: newConfig.operator,
+              value: newConfig.value,
+              delay_seconds: newConfig.delaySeconds
+            })
+          } else {
+            result = await WorkflowDatabaseClient.createLogicConfig({
+              node_id: selectedNodeId,
+              logic_type: newConfig.logicType || 'condition',
+              field: newConfig.field,
+              operator: newConfig.operator,
+              value: newConfig.value,
+              delay_seconds: newConfig.delaySeconds
+            })
+          }
+          break
+
+        default:
+          throw new Error(`Unknown database node type: ${dbNodeType}`)
+      }
+
+      if (result.error) {
+        console.error('❌ [ConfigPanel] Failed to save configuration:', result.error)
+        toast.error('Failed to save configuration: ' + result.error)
+      } else {
+        console.log('✅ [ConfigPanel] Configuration saved successfully:', result.data)
+        toast.success('Configuration saved successfully!')
+      }
+    } catch (error) {
+      console.error('❌ [ConfigPanel] Error saving configuration:', error)
+      toast.error('Error saving configuration: ' + (error instanceof Error ? error.message : 'Unknown error'))
+    }
   }, [updateNodeData])
 
   const handleMouseDown = useCallback((e: React.MouseEvent) => {

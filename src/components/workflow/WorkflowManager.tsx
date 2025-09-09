@@ -64,103 +64,21 @@ export function WorkflowManager({
   const isOpen = externalOpen !== undefined ? externalOpen : internalIsOpen
   const setIsOpen = externalOnOpenChange || setInternalIsOpen
 
-  // Debug logging for modal state
-  React.useEffect(() => {
-    console.log('🔧 [WORKFLOW MANAGER] Modal state changed:', {
-      externalOpen,
-      internalIsOpen,
-      isOpen,
-      hasExternalControl: externalOpen !== undefined
-    })
-  }, [externalOpen, internalIsOpen, isOpen])
-
   // Load workflows from Supabase
   const loadWorkflows = useCallback(async () => {
     setIsLoading(true)
     
     try {
-      console.log('🔄 [WORKFLOW MANAGER] Loading workflows from database...')
-      
-      // Get workflows using the new database client
-      const { data: workflowsData, error } = await WorkflowDatabaseClient.getWorkflows()
-      
-      if (error) {
-        console.error('❌ [WORKFLOW MANAGER] Failed to load workflows:', error)
-        toast.error('Failed to load workflows', {
-          description: `Database error: ${error}`
-        })
-        setWorkflows([])
-        return
-      }
-
-      console.log('✅ [WORKFLOW MANAGER] Loaded workflows:', {
-        count: workflowsData?.length || 0,
-        workflows: workflowsData?.map(w => ({
-          id: w.id,
-          name: w.name,
-          isActive: w.is_active,
-          createdAt: w.created_at
-        }))
-      })
-
-      setWorkflows(workflowsData || [])
-      
-      // Validate each workflow
-      const validationMap = new Map<string, ValidationResult>()
-      for (const workflow of workflowsData || []) {
-        try {
-          // Load nodes and edges for validation
-          const { data: nodes } = await WorkflowDatabaseClient.getWorkflowNodes(workflow.id)
-          const { data: edges } = await WorkflowDatabaseClient.getWorkflowConnections(workflow.id)
-          
-          if (nodes && edges) {
-            // Convert database nodes to React Flow format for validation
-            const reactFlowNodes = nodes.map(node => ({
-              id: node.id,
-              type: node.node_type,
-              position: { x: node.position_x, y: node.position_y },
-              data: {
-                label: node.name,
-                nodeType: node.node_type,
-                config: (node as any).config || {}
-              }
-            }))
-
-            const reactFlowEdges = edges.map(edge => ({
-              id: edge.id,
-              source: edge.source_node_id,
-              target: edge.target_node_id,
-              type: 'default'
-            }))
-
-            const validation = validateWorkflow(reactFlowNodes, reactFlowEdges)
-            validationMap.set(workflow.id, validation)
-          }
-        } catch (validationError) {
-          console.warn(`⚠️ [WORKFLOW MANAGER] Failed to validate workflow ${workflow.id}:`, validationError)
-          const errorResult: ValidationResult = {
-            isValid: false,
-            errors: [{
-              id: 'validation-error',
-              type: 'error',
-              category: 'structure',
-              message: 'Unable to validate workflow',
-              severity: 'high'
-            }],
-            warnings: [],
-            info: [],
-            score: 0
-          }
-          validationMap.set(workflow.id, errorResult)
-        }
-      }
-      
-      setValidationResults(validationMap)
-      
+      // Get workflows directly from Supabase
+      // TODO: Update WorkflowManager to work with new database schema
+      // For now, disable the workflow listing functionality
+      console.warn('WorkflowManager: Listing workflows is temporarily disabled during database migration')
+      setWorkflows([])
+      setValidationResults(new Map())
     } catch (error) {
-      console.error('❌ [WORKFLOW MANAGER] Unexpected error loading workflows:', error)
+      console.error('Supabase error loading workflows:', error)
       toast.error('Failed to load workflows', {
-        description: 'An unexpected error occurred while loading workflows.'
+        description: 'Unable to load workflows from Supabase. Please check your connection.'
       })
       setWorkflows([])
     } finally {
@@ -184,119 +102,33 @@ export function WorkflowManager({
     : workflows
 
   // Handle load workflow
-  const handleLoadWorkflow = useCallback(async (workflow: Workflow) => {
-    try {
-      console.log('🔄 [WORKFLOW MANAGER] Loading workflow:', {
-        workflowId: workflow.id,
-        workflowName: workflow.name
-      })
-
-      // Load nodes and edges from database
-      const [nodesResult, edgesResult] = await Promise.all([
-        WorkflowDatabaseClient.getWorkflowNodes(workflow.id),
-        WorkflowDatabaseClient.getWorkflowConnections(workflow.id)
-      ])
-
-      if (nodesResult.error) {
-        console.error('❌ [WORKFLOW MANAGER] Failed to load nodes:', nodesResult.error)
-        toast.error('Failed to load workflow nodes', {
-          description: `Error: ${nodesResult.error}`
-        })
-        return
-      }
-
-      if (edgesResult.error) {
-        console.error('❌ [WORKFLOW MANAGER] Failed to load edges:', edgesResult.error)
-        toast.error('Failed to load workflow connections', {
-          description: `Error: ${edgesResult.error}`
-        })
-        return
-      }
-
-      const nodes = nodesResult.data || []
-      const edges = edgesResult.data || []
-
-      console.log('✅ [WORKFLOW MANAGER] Loaded workflow data:', {
-        workflowId: workflow.id,
-        nodesCount: nodes.length,
-        edgesCount: edges.length
-      })
-
-      // Convert database nodes to React Flow nodes
-      const reactFlowNodes = nodes.map(node => {
-        // Convert database node to React Flow node format
-        const nodeTypeMapping: Record<string, string> = {
-          'trigger': 'email-trigger', // Map generic trigger to email-trigger for React Flow
-          'action': 'trello-action',  // Map generic action to trello-action for React Flow
-          'logic': 'logic-node',
-          'ai': 'ai-node'
-        }
-
-        return {
-          id: node.id,
-          type: nodeTypeMapping[node.node_type] || node.node_type,
-          position: { x: node.position_x, y: node.position_y },
-          data: {
-            label: node.name,
-            nodeType: node.node_type,
-            config: (node as any).config || {}
-          }
-        }
-      })
-
-      // Convert database edges to React Flow edges
-      const reactFlowEdges = edges.map(edge => ({
-        id: edge.id,
-        source: edge.source_node_id,
-        target: edge.target_node_id,
-        type: (edge as any).connection_type || 'default'
-      }))
-
-      const workflowState: WorkflowState = {
-        id: workflow.id,
-        name: workflow.name,
-        status: workflow.is_active ? 'active' : 'draft',
-        isValid: true,
-        validationErrors: []
-      }
-      
-      onLoadWorkflow(reactFlowNodes, reactFlowEdges, workflowState)
-      setIsOpen(false)
-
-      toast.success('Workflow loaded successfully!', {
-        description: `Loaded "${workflow.name}" with ${nodes.length} nodes and ${edges.length} connections`
-      })
-
-    } catch (error) {
-      console.error('❌ [WORKFLOW MANAGER] Failed to load workflow:', error)
-      toast.error('Failed to load workflow', {
-        description: 'An unexpected error occurred while loading the workflow'
-      })
+  const handleLoadWorkflow = useCallback((workflow: Workflow) => {
+    const workflowState: WorkflowState = {
+      id: workflow.id,
+      name: workflow.name,
+      status: workflow.is_active ? 'active' : 'draft',
+      isValid: true,
+      validationErrors: []
     }
+    
+    onLoadWorkflow(workflow.nodes, workflow.edges, workflowState)
+    setIsOpen(false)
+    toast.success('Workflow loaded successfully!', {
+      description: `Loaded "${workflow.name}"`
+    })
   }, [onLoadWorkflow, setIsOpen])
 
   // Handle delete workflow
   const handleDeleteWorkflow = useCallback(async (workflowId: string) => {
     try {
-      console.log('🗑️ [WORKFLOW MANAGER] Deleting workflow:', { workflowId })
-
-      const { error } = await WorkflowDatabaseClient.deleteWorkflow(workflowId)
-      
-      if (error) {
-        console.error('❌ [WORKFLOW MANAGER] Failed to delete workflow:', error)
-        toast.error('Failed to delete workflow', {
-          description: `Database error: ${error}`,
-          duration: 8000
-        })
-        return
-      }
-
-      console.log('✅ [WORKFLOW MANAGER] Workflow deleted successfully:', { workflowId })
+      // TODO: Update to use new database client
+      console.warn('WorkflowManager: Delete workflow is temporarily disabled during database migration')
+      throw new Error('Delete workflow functionality is temporarily disabled')
       await loadWorkflows()
       toast.success('Workflow deleted successfully!')
     } catch (error) {
-      console.error('❌ [WORKFLOW MANAGER] Unexpected error deleting workflow:', error)
-      const errorMessage = error instanceof Error ? error.message : 'Failed to delete workflow'
+      console.error('Supabase error deleting workflow:', error)
+      const errorMessage = error instanceof Error ? error.message : 'Failed to delete workflow from Supabase'
       toast.error('Failed to delete workflow', {
         description: errorMessage,
         duration: 8000
@@ -307,141 +139,25 @@ export function WorkflowManager({
   // Handle duplicate workflow
   const handleDuplicateWorkflow = useCallback(async (workflow: Workflow) => {
     try {
-      console.log('📋 [WORKFLOW MANAGER] Duplicating workflow:', {
-        originalId: workflow.id,
-        originalName: workflow.name
-      })
-
-      // Create a new workflow with a modified name
-      const duplicateName = `${workflow.name} (Copy)`
-      const { data: duplicate, error } = await WorkflowDatabaseClient.createWorkflow({
-        name: duplicateName,
-        description: workflow.description || ''
-      })
-
-      if (error) {
-        console.error('❌ [WORKFLOW MANAGER] Failed to create duplicate workflow:', error)
-        toast.error('Failed to duplicate workflow', {
-          description: `Database error: ${error}`
-        })
-        return
-      }
-
-      if (!duplicate) {
-        throw new Error('No workflow data returned from create operation')
-      }
-
-      console.log('✅ [WORKFLOW MANAGER] Duplicate workflow created:', {
-        duplicateId: duplicate.id,
-        duplicateName: duplicate.name
-      })
-
-      // Load nodes and edges from original workflow
-      const [nodesResult, edgesResult] = await Promise.all([
-        WorkflowDatabaseClient.getWorkflowNodes(workflow.id),
-        WorkflowDatabaseClient.getWorkflowConnections(workflow.id)
-      ])
-
-      if (nodesResult.data && nodesResult.data.length > 0) {
-        // Create a mapping of old node IDs to new node IDs
-        const nodeIdMapping = new Map<string, string>()
-        
-        // Create duplicate nodes
-        for (const originalNode of nodesResult.data) {
-          const { data: duplicateNode, error: nodeError } = await WorkflowDatabaseClient.createNode({
-            workflow_id: duplicate.id,
-            node_type: originalNode.node_type,
-            name: originalNode.name,
-            position_x: originalNode.position_x,
-            position_y: originalNode.position_y
-          })
-
-          if (nodeError) {
-            console.error('❌ [WORKFLOW MANAGER] Failed to duplicate node:', nodeError)
-            continue
-          }
-
-          if (duplicateNode) {
-            nodeIdMapping.set(originalNode.id, duplicateNode.id)
-          }
-        }
-
-        // Create duplicate connections using the new node IDs
-        if (edgesResult.data && edgesResult.data.length > 0) {
-          for (const originalEdge of edgesResult.data) {
-            const newSourceId = nodeIdMapping.get(originalEdge.source_node_id)
-            const newTargetId = nodeIdMapping.get(originalEdge.target_node_id)
-
-            if (newSourceId && newTargetId) {
-              await WorkflowDatabaseClient.createConnection({
-                workflow_id: duplicate.id,
-                source_node_id: newSourceId,
-                target_node_id: newTargetId
-              })
-            }
-          }
-        }
-      }
-
+      // TODO: Update to use new database client
+      console.warn('WorkflowManager: Duplicate workflow is temporarily disabled during database migration')
+      throw new Error('Duplicate workflow functionality is temporarily disabled')
+      
       await loadWorkflows()
       toast.success('Workflow duplicated successfully!', {
         description: `Created "${duplicate.name}"`
       })
-
     } catch (error) {
-      console.error('❌ [WORKFLOW MANAGER] Unexpected error duplicating workflow:', error)
+      console.error('Supabase error duplicating workflow:', error)
       toast.error('Failed to duplicate workflow', {
-        description: 'An unexpected error occurred while duplicating the workflow'
+        description: 'Unable to create duplicate in Supabase'
       })
     }
   }, [loadWorkflows])
 
   // Handle export workflow
-  const handleExportWorkflow = useCallback(async (workflow: Workflow) => {
+  const handleExportWorkflow = useCallback((workflow: Workflow) => {
     try {
-      console.log('📤 [WORKFLOW MANAGER] Exporting workflow:', {
-        workflowId: workflow.id,
-        workflowName: workflow.name
-      })
-
-      // Load nodes and edges from database
-      const [nodesResult, edgesResult] = await Promise.all([
-        WorkflowDatabaseClient.getWorkflowNodes(workflow.id),
-        WorkflowDatabaseClient.getWorkflowConnections(workflow.id)
-      ])
-
-      if (nodesResult.error || edgesResult.error) {
-        console.error('❌ [WORKFLOW MANAGER] Failed to load workflow data for export:', {
-          nodesError: nodesResult.error,
-          edgesError: edgesResult.error
-        })
-        toast.error('Failed to load workflow data for export')
-        return
-      }
-
-      const nodes = nodesResult.data || []
-      const edges = edgesResult.data || []
-
-      // Convert database nodes to React Flow format
-      const reactFlowNodes = nodes.map(node => ({
-        id: node.id,
-        type: node.node_type,
-        position: { x: node.position_x, y: node.position_y },
-        data: {
-          label: node.name,
-          nodeType: node.node_type,
-          config: (node as any).config || {}
-        }
-      }))
-
-      // Convert database edges to React Flow format
-      const reactFlowEdges = edges.map(edge => ({
-        id: edge.id,
-        source: edge.source_node_id,
-        target: edge.target_node_id,
-        type: 'default'
-      }))
-
       const workflowState: WorkflowState = {
         id: workflow.id,
         name: workflow.name,
@@ -450,11 +166,11 @@ export function WorkflowManager({
         validationErrors: []
       }
       
-      const exportData = exportWorkflow(reactFlowNodes, reactFlowEdges, workflowState)
+      const exportData = exportWorkflow(workflow.nodes, workflow.edges, workflowState)
       downloadWorkflowFile(exportData)
       toast.success('Workflow exported successfully!')
     } catch (error) {
-      console.error('❌ [WORKFLOW MANAGER] Export error:', error)
+      console.error('Export error:', error)
       toast.error('Failed to export workflow')
     }
   }, [])
@@ -498,16 +214,15 @@ export function WorkflowManager({
 
   return (
     <div className={className}>
-      <Dialog open={isOpen} onOpenChange={setIsOpen}>
-        {!hideButton && (
+      {!hideButton && (
+        <Dialog open={isOpen} onOpenChange={setIsOpen}>
           <DialogTrigger asChild>
             <Button variant="outline" size="sm">
               <FileText className="h-4 w-4 mr-2" />
               Manage Workflows
             </Button>
           </DialogTrigger>
-        )}
-        <DialogContent className="max-w-4xl max-h-[80vh]">
+          <DialogContent className="max-w-4xl max-h-[80vh]">
             <DialogHeader>
               <DialogTitle>Workflow Manager</DialogTitle>
               <DialogDescription>
@@ -575,7 +290,9 @@ export function WorkflowManager({
                                   </p>
                                 )}
                                 <div className="flex items-center gap-4 mt-2 text-xs text-muted-foreground">
-                                  <span>Updated {new Date(workflow.last_modified_at).toLocaleDateString()}</span>
+                                  <span>{workflow.node_count || 0} nodes</span>
+                                  <span>{workflow.edge_count || 0} edges</span>
+                                  <span>Updated {new Date(workflow.updated_at).toLocaleDateString()}</span>
                                 </div>
                               </div>
                               
@@ -644,6 +361,7 @@ export function WorkflowManager({
             </div>
           </DialogContent>
         </Dialog>
+      )}
     </div>
   )
 }

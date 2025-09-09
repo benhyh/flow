@@ -61,53 +61,6 @@ export class WorkflowDatabaseClient {
   }
 
   /**
-   * Get all workflows for the current authenticated user
-   */
-  static async getWorkflows(): Promise<DatabaseResponse<Workflow[]>> {
-    try {
-      // Get the current user from Supabase auth
-      const { data: { user }, error: authError } = await supabase.auth.getUser()
-      
-      if (authError) {
-        console.error('❌ [DATABASE CLIENT] Auth error getting current user:', authError)
-        return { data: null, error: `Authentication error: ${authError.message}` }
-      }
-
-      if (!user) {
-        console.error('❌ [DATABASE CLIENT] No authenticated user found')
-        return { data: null, error: 'No authenticated user found' }
-      }
-
-      console.log('🔍 [DATABASE CLIENT] Getting workflows for user:', {
-        userId: user.id,
-        userEmail: user.email
-      })
-
-      const { data, error } = await supabase
-        .from('workflows')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('last_modified_at', { ascending: false })
-
-      if (error) {
-        console.error('❌ [DATABASE CLIENT] Error fetching workflows:', error)
-        throw error
-      }
-
-      console.log('✅ [DATABASE CLIENT] Successfully fetched workflows:', {
-        count: data?.length || 0,
-        workflows: data?.map(w => ({ id: w.id, name: w.name, is_active: w.is_active }))
-      })
-
-      return { data, error: null }
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
-      console.error('💥 [DATABASE CLIENT] Failed to get workflows:', errorMessage)
-      return { data: null, error: errorMessage }
-    }
-  }
-
-  /**
    * Get a specific workflow
    */
   static async getWorkflow(workflowId: string, userId: string): Promise<DatabaseResponse<Workflow>> {
@@ -127,59 +80,27 @@ export class WorkflowDatabaseClient {
   }
 
   /**
-   * Create a new workflow (with optional userId parameter)
+   * Create a new workflow
    */
   static async createWorkflow(
-    request: CreateWorkflowRequest,
-    userId?: string
+    userId: string,
+    request: CreateWorkflowRequest
   ): Promise<DatabaseResponse<Workflow>> {
     try {
-      let finalUserId = userId
-
-      // If no userId provided, get the current authenticated user
-      if (!finalUserId) {
-        const { data: { user }, error: authError } = await supabase.auth.getUser()
-        
-        if (authError) {
-          console.error('❌ [DATABASE CLIENT] Auth error getting current user:', authError)
-          return { data: null, error: `Authentication error: ${authError.message}` }
-        }
-
-        if (!user) {
-          console.error('❌ [DATABASE CLIENT] No authenticated user found')
-          return { data: null, error: 'No authenticated user found' }
-        }
-
-        finalUserId = user.id
-      }
-
-      console.log('📝 [DATABASE CLIENT] Creating workflow:', {
-        userId: finalUserId,
-        request
-      })
-
       const { data, error } = await supabase
         .from('workflows')
         .insert({
-          user_id: finalUserId,
+          user_id: userId,
           name: request.name,
-          description: request.description,
-          is_active: request.is_active || false
+          description: request.description
         })
         .select()
         .single()
 
-      if (error) {
-        console.error('❌ [DATABASE CLIENT] Error creating workflow:', error)
-        throw error
-      }
-
-      console.log('✅ [DATABASE CLIENT] Successfully created workflow:', data)
+      if (error) throw error
       return { data, error: null }
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
-      console.error('💥 [DATABASE CLIENT] Failed to create workflow:', errorMessage)
-      return { data: null, error: errorMessage }
+      return { data: null, error: error instanceof Error ? error.message : 'Unknown error' }
     }
   }
 
@@ -242,51 +163,20 @@ export class WorkflowDatabaseClient {
   }
 
   /**
-   * Delete a workflow (with optional userId parameter)
+   * Delete a workflow
    */
-  static async deleteWorkflow(workflowId: string, userId?: string): Promise<DatabaseResponse<void>> {
+  static async deleteWorkflow(workflowId: string, userId: string): Promise<DatabaseResponse<void>> {
     try {
-      let finalUserId = userId
-
-      // If no userId provided, get the current authenticated user
-      if (!finalUserId) {
-        const { data: { user }, error: authError } = await supabase.auth.getUser()
-        
-        if (authError) {
-          console.error('❌ [DATABASE CLIENT] Auth error getting current user:', authError)
-          return { data: null, error: `Authentication error: ${authError.message}` }
-        }
-
-        if (!user) {
-          console.error('❌ [DATABASE CLIENT] No authenticated user found')
-          return { data: null, error: 'No authenticated user found' }
-        }
-
-        finalUserId = user.id
-      }
-
-      console.log('🗑️ [DATABASE CLIENT] Deleting workflow:', {
-        workflowId,
-        userId: finalUserId
-      })
-
       const { error } = await supabase
         .from('workflows')
         .delete()
         .eq('id', workflowId)
-        .eq('user_id', finalUserId)
+        .eq('user_id', userId)
 
-      if (error) {
-        console.error('❌ [DATABASE CLIENT] Error deleting workflow:', error)
-        throw error
-      }
-
-      console.log('✅ [DATABASE CLIENT] Successfully deleted workflow:', workflowId)
+      if (error) throw error
       return { data: undefined, error: null }
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
-      console.error('💥 [DATABASE CLIENT] Failed to delete workflow:', errorMessage)
-      return { data: null, error: errorMessage }
+      return { data: null, error: error instanceof Error ? error.message : 'Unknown error' }
     }
   }
 
@@ -403,52 +293,24 @@ export class WorkflowDatabaseClient {
    * Get all connections for a workflow
    */
   static async getWorkflowConnections(workflowId: string): Promise<DatabaseResponse<NodeConnection[]>> {
-    try {
-      const { data, error } = await supabase
-        .from('node_connections')
-        .select('*')
-        .eq('workflow_id', workflowId)
-
-      if (error) throw error
-      return { data, error: null }
-    } catch (error) {
-      return { data: null, error: error instanceof Error ? error.message : 'Unknown error' }
-    }
+    // Connections are deprecated; return empty list to avoid 404s when endpoint removed
+    return { data: [], error: null }
   }
 
   /**
    * Create a new connection
    */
   static async createConnection(request: CreateConnectionRequest): Promise<DatabaseResponse<NodeConnection>> {
-    try {
-      const { data, error } = await supabase
-        .from('node_connections')
-        .insert(request)
-        .select()
-        .single()
-
-      if (error) throw error
-      return { data, error: null }
-    } catch (error) {
-      return { data: null, error: error instanceof Error ? error.message : 'Unknown error' }
-    }
+    // No-op for deprecated connections API
+    return { data: null as any, error: null }
   }
 
   /**
    * Delete a connection
    */
   static async deleteConnection(connectionId: string): Promise<DatabaseResponse<void>> {
-    try {
-      const { error } = await supabase
-        .from('node_connections')
-        .delete()
-        .eq('id', connectionId)
-
-      if (error) throw error
-      return { data: undefined, error: null }
-    } catch (error) {
-      return { data: null, error: error instanceof Error ? error.message : 'Unknown error' }
-    }
+    // No-op for deprecated connections API
+    return { data: undefined, error: null }
   }
 
   // =============================================================================
@@ -554,6 +416,336 @@ export class WorkflowDatabaseClient {
         .from('trigger_node_configs')
         .upsert(config, { onConflict: 'node_id' })
         .select()
+        .single()
+
+      if (error) throw error
+      return { data, error: null }
+    } catch (error) {
+      return { data: null, error: error instanceof Error ? error.message : 'Unknown error' }
+    }
+  }
+
+  /**
+   * Create Trigger node configuration
+   */
+  static async createTriggerConfig(config: Omit<TriggerNodeConfig, 'id' | 'created_at'>): Promise<DatabaseResponse<TriggerNodeConfig>> {
+    try {
+      const { data, error } = await supabase
+        .from('trigger_node_configs')
+        .insert(config)
+        .select()
+        .single()
+
+      if (error) throw error
+      return { data, error: null }
+    } catch (error) {
+      return { data: null, error: error instanceof Error ? error.message : 'Unknown error' }
+    }
+  }
+
+  /**
+   * Update Trigger node configuration
+   */
+  static async updateTriggerConfig(nodeId: string, config: Partial<Omit<TriggerNodeConfig, 'id' | 'node_id' | 'created_at'>>): Promise<DatabaseResponse<TriggerNodeConfig>> {
+    try {
+      const { data, error } = await supabase
+        .from('trigger_node_configs')
+        .update(config)
+        .eq('node_id', nodeId)
+        .select()
+        .single()
+
+      if (error) throw error
+      return { data, error: null }
+    } catch (error) {
+      return { data: null, error: error instanceof Error ? error.message : 'Unknown error' }
+    }
+  }
+
+  /**
+   * Get Trigger node configuration
+   */
+  static async getTriggerConfig(nodeId: string): Promise<DatabaseResponse<TriggerNodeConfig>> {
+    try {
+      const { data, error } = await supabase
+        .from('trigger_node_configs')
+        .select('*')
+        .eq('node_id', nodeId)
+        .single()
+
+      if (error) throw error
+      return { data, error: null }
+    } catch (error) {
+      return { data: null, error: error instanceof Error ? error.message : 'Unknown error' }
+    }
+  }
+
+  /**
+   * Create Trello node configuration
+   */
+  static async createTrelloConfig(config: Omit<TrelloNodeConfig, 'id' | 'created_at'>): Promise<DatabaseResponse<TrelloNodeConfig>> {
+    try {
+      const { data, error } = await supabase
+        .from('trello_node_configs')
+        .insert(config)
+        .select()
+        .single()
+
+      if (error) throw error
+      return { data, error: null }
+    } catch (error) {
+      return { data: null, error: error instanceof Error ? error.message : 'Unknown error' }
+    }
+  }
+
+  /**
+   * Update Trello node configuration
+   */
+  static async updateTrelloConfig(nodeId: string, config: Partial<Omit<TrelloNodeConfig, 'id' | 'node_id' | 'created_at'>>): Promise<DatabaseResponse<TrelloNodeConfig>> {
+    try {
+      const { data, error } = await supabase
+        .from('trello_node_configs')
+        .update(config)
+        .eq('node_id', nodeId)
+        .select()
+        .single()
+
+      if (error) throw error
+      return { data, error: null }
+    } catch (error) {
+      return { data: null, error: error instanceof Error ? error.message : 'Unknown error' }
+    }
+  }
+
+  /**
+   * Get Trello node configuration
+   */
+  static async getTrelloConfig(nodeId: string): Promise<DatabaseResponse<TrelloNodeConfig>> {
+    try {
+      const { data, error } = await supabase
+        .from('trello_node_configs')
+        .select('*')
+        .eq('node_id', nodeId)
+        .single()
+
+      if (error) throw error
+      return { data, error: null }
+    } catch (error) {
+      return { data: null, error: error instanceof Error ? error.message : 'Unknown error' }
+    }
+  }
+
+  /**
+   * Create Asana node configuration
+   */
+  static async createAsanaConfig(config: Omit<AsanaNodeConfig, 'id' | 'created_at'>): Promise<DatabaseResponse<AsanaNodeConfig>> {
+    try {
+      const { data, error } = await supabase
+        .from('asana_node_configs')
+        .insert(config)
+        .select()
+        .single()
+
+      if (error) throw error
+      return { data, error: null }
+    } catch (error) {
+      return { data: null, error: error instanceof Error ? error.message : 'Unknown error' }
+    }
+  }
+
+  /**
+   * Update Asana node configuration
+   */
+  static async updateAsanaConfig(nodeId: string, config: Partial<Omit<AsanaNodeConfig, 'id' | 'node_id' | 'created_at'>>): Promise<DatabaseResponse<AsanaNodeConfig>> {
+    try {
+      const { data, error } = await supabase
+        .from('asana_node_configs')
+        .update(config)
+        .eq('node_id', nodeId)
+        .select()
+        .single()
+
+      if (error) throw error
+      return { data, error: null }
+    } catch (error) {
+      return { data: null, error: error instanceof Error ? error.message : 'Unknown error' }
+    }
+  }
+
+  /**
+   * Get Asana node configuration
+   */
+  static async getAsanaConfig(nodeId: string): Promise<DatabaseResponse<AsanaNodeConfig>> {
+    try {
+      const { data, error } = await supabase
+        .from('asana_node_configs')
+        .select('*')
+        .eq('node_id', nodeId)
+        .single()
+
+      if (error) throw error
+      return { data, error: null }
+    } catch (error) {
+      return { data: null, error: error instanceof Error ? error.message : 'Unknown error' }
+    }
+  }
+
+  /**
+   * Create Gmail node configuration
+   */
+  static async createGmailConfig(config: Omit<GmailNodeConfig, 'id' | 'created_at'>): Promise<DatabaseResponse<GmailNodeConfig>> {
+    try {
+      const { data, error } = await supabase
+        .from('gmail_node_configs')
+        .insert(config)
+        .select()
+        .single()
+
+      if (error) throw error
+      return { data, error: null }
+    } catch (error) {
+      return { data: null, error: error instanceof Error ? error.message : 'Unknown error' }
+    }
+  }
+
+  /**
+   * Update Gmail node configuration
+   */
+  static async updateGmailConfig(nodeId: string, config: Partial<Omit<GmailNodeConfig, 'id' | 'node_id' | 'created_at'>>): Promise<DatabaseResponse<GmailNodeConfig>> {
+    try {
+      const { data, error } = await supabase
+        .from('gmail_node_configs')
+        .update(config)
+        .eq('node_id', nodeId)
+        .select()
+        .single()
+
+      if (error) throw error
+      return { data, error: null }
+    } catch (error) {
+      return { data: null, error: error instanceof Error ? error.message : 'Unknown error' }
+    }
+  }
+
+  /**
+   * Get Gmail node configuration
+   */
+  static async getGmailConfig(nodeId: string): Promise<DatabaseResponse<GmailNodeConfig>> {
+    try {
+      const { data, error } = await supabase
+        .from('gmail_node_configs')
+        .select('*')
+        .eq('node_id', nodeId)
+        .single()
+
+      if (error) throw error
+      return { data, error: null }
+    } catch (error) {
+      return { data: null, error: error instanceof Error ? error.message : 'Unknown error' }
+    }
+  }
+
+  /**
+   * Create AI node configuration
+   */
+  static async createAIConfig(config: Omit<AINodeConfig, 'id' | 'created_at'>): Promise<DatabaseResponse<AINodeConfig>> {
+    try {
+      const { data, error } = await supabase
+        .from('ai_node_configs')
+        .insert(config)
+        .select()
+        .single()
+
+      if (error) throw error
+      return { data, error: null }
+    } catch (error) {
+      return { data: null, error: error instanceof Error ? error.message : 'Unknown error' }
+    }
+  }
+
+  /**
+   * Update AI node configuration
+   */
+  static async updateAIConfig(nodeId: string, config: Partial<Omit<AINodeConfig, 'id' | 'node_id' | 'created_at'>>): Promise<DatabaseResponse<AINodeConfig>> {
+    try {
+      const { data, error } = await supabase
+        .from('ai_node_configs')
+        .update(config)
+        .eq('node_id', nodeId)
+        .select()
+        .single()
+
+      if (error) throw error
+      return { data, error: null }
+    } catch (error) {
+      return { data: null, error: error instanceof Error ? error.message : 'Unknown error' }
+    }
+  }
+
+  /**
+   * Get AI node configuration
+   */
+  static async getAIConfig(nodeId: string): Promise<DatabaseResponse<AINodeConfig>> {
+    try {
+      const { data, error } = await supabase
+        .from('ai_node_configs')
+        .select('*')
+        .eq('node_id', nodeId)
+        .single()
+
+      if (error) throw error
+      return { data, error: null }
+    } catch (error) {
+      return { data: null, error: error instanceof Error ? error.message : 'Unknown error' }
+    }
+  }
+
+  /**
+   * Create Logic node configuration
+   */
+  static async createLogicConfig(config: Omit<LogicNodeConfig, 'id' | 'created_at'>): Promise<DatabaseResponse<LogicNodeConfig>> {
+    try {
+      const { data, error } = await supabase
+        .from('logic_node_configs')
+        .insert(config)
+        .select()
+        .single()
+
+      if (error) throw error
+      return { data, error: null }
+    } catch (error) {
+      return { data: null, error: error instanceof Error ? error.message : 'Unknown error' }
+    }
+  }
+
+  /**
+   * Update Logic node configuration
+   */
+  static async updateLogicConfig(nodeId: string, config: Partial<Omit<LogicNodeConfig, 'id' | 'node_id' | 'created_at'>>): Promise<DatabaseResponse<LogicNodeConfig>> {
+    try {
+      const { data, error } = await supabase
+        .from('logic_node_configs')
+        .update(config)
+        .eq('node_id', nodeId)
+        .select()
+        .single()
+
+      if (error) throw error
+      return { data, error: null }
+    } catch (error) {
+      return { data: null, error: error instanceof Error ? error.message : 'Unknown error' }
+    }
+  }
+
+  /**
+   * Get Logic node configuration
+   */
+  static async getLogicConfig(nodeId: string): Promise<DatabaseResponse<LogicNodeConfig>> {
+    try {
+      const { data, error } = await supabase
+        .from('logic_node_configs')
+        .select('*')
+        .eq('node_id', nodeId)
         .single()
 
       if (error) throw error

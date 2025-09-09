@@ -202,10 +202,7 @@ export function WorkflowToolbar({
           {/* Management buttons inline with title */}
           <div className="flex items-center">
             <Button
-              onClick={() => {
-                console.log('🔧 [WORKFLOW TOOLBAR] Manage workflows button clicked')
-                onManageWorkflows()
-              }}
+              onClick={onManageWorkflows}
               variant="ghost"
               className="h-8 px-2 text-white hover:text-[#8b5cf6] hover:bg-transparent cursor-pointer"
               title="Manage Workflows"
