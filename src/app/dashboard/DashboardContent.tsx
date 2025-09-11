@@ -145,6 +145,131 @@ function computeDagStructure(nodes: Node[], edges: Edge[]): string[][] {
   return levels
 }
 
+// Create mapping from React Flow node IDs to database node IDs
+function createNodeIdMapping(nodes: Node[], dbNodes: DatabaseNode[]): Record<string, string> {
+  const mapping: Record<string, string> = {}
+  
+  // For existing nodes, map React Flow ID to database ID
+  dbNodes.forEach(dbNode => {
+    const reactFlowNode = nodes.find(n => n.id === dbNode.id)
+    if (reactFlowNode) {
+      mapping[reactFlowNode.id] = dbNode.id
+    }
+  })
+  
+  // For new nodes (not yet in database), use the React Flow ID as-is
+  nodes.forEach(node => {
+    if (!mapping[node.id]) {
+      mapping[node.id] = node.id
+    }
+  })
+  
+  return mapping
+}
+
+function computeDagStructureWithDbIds(nodes: Node[], edges: Edge[], dbNodes: DatabaseNode[]): string[][] {
+  const idMapping = createNodeIdMapping(nodes, dbNodes)
+  
+  // Convert edges to use database IDs
+  const dbEdges = edges.map(edge => ({
+    source: idMapping[edge.source] || edge.source,
+    target: idMapping[edge.target] || edge.target
+  }))
+  
+  // Get all unique node IDs (database IDs)
+  const allDbNodeIds = Array.from(new Set([
+    ...dbNodes.map(n => n.id),
+    ...Object.values(idMapping)
+  ]))
+  
+  const adjacency: Record<string, string[]> = {}
+  const inDegree: Record<string, number> = {}
+  allDbNodeIds.forEach(id => {
+    adjacency[id] = []
+    inDegree[id] = 0
+  })
+  
+  dbEdges.forEach(e => {
+    if (adjacency[e.source]) adjacency[e.source].push(e.target)
+    if (inDegree[e.target] !== undefined) inDegree[e.target] += 1
+  })
+
+  const levels: string[][] = []
+  let currentLevel: string[] = Object.keys(inDegree).filter(id => inDegree[id] === 0)
+  const remainingInDegree: Record<string, number> = { ...inDegree }
+
+  const visited: Set<string> = new Set()
+  while (currentLevel.length > 0) {
+    levels.push(currentLevel)
+    const nextLevelCandidates: string[] = []
+    for (const id of currentLevel) {
+      visited.add(id)
+      for (const neighbor of adjacency[id]) {
+        remainingInDegree[neighbor] -= 1
+        if (remainingInDegree[neighbor] === 0) {
+          nextLevelCandidates.push(neighbor)
+        }
+      }
+    }
+    currentLevel = nextLevelCandidates.filter(id => !visited.has(id))
+  }
+
+  // Include any isolated or cyclic nodes not covered
+  const uncovered = allDbNodeIds.filter(id => !levels.flat().includes(id))
+  if (uncovered.length > 0) {
+    levels.push(uncovered)
+  }
+
+  return levels
+}
+
+function computeTopologicalOrderWithDbIds(nodes: Node[], edges: Edge[], dbNodes: DatabaseNode[]): string[] {
+  const idMapping = createNodeIdMapping(nodes, dbNodes)
+  
+  // Convert edges to use database IDs
+  const dbEdges = edges.map(edge => ({
+    source: idMapping[edge.source] || edge.source,
+    target: idMapping[edge.target] || edge.target
+  }))
+  
+  // Get all unique node IDs (database IDs)
+  const allDbNodeIds = Array.from(new Set([
+    ...dbNodes.map(n => n.id),
+    ...Object.values(idMapping)
+  ]))
+  
+  const adjacency: Record<string, string[]> = {}
+  const inDegree: Record<string, number> = {}
+  allDbNodeIds.forEach(id => {
+    adjacency[id] = []
+    inDegree[id] = 0
+  })
+  
+  dbEdges.forEach(e => {
+    if (adjacency[e.source]) adjacency[e.source].push(e.target)
+    if (inDegree[e.target] !== undefined) inDegree[e.target] += 1
+  })
+
+  const queue: string[] = []
+  Object.keys(inDegree).forEach(id => {
+    if (inDegree[id] === 0) queue.push(id)
+  })
+
+  const order: string[] = []
+  let idx = 0
+  while (idx < queue.length) {
+    const current = queue[idx++]
+    order.push(current)
+    for (const neighbor of adjacency[current]) {
+      inDegree[neighbor] -= 1
+      if (inDegree[neighbor] === 0) queue.push(neighbor)
+    }
+  }
+
+  // If cycle detected (order shorter), return what we have to avoid blocking save
+  return order
+}
+
 // Start with empty canvas for better onboarding experience
 const initialNodes: Node[] = []
 const initialEdges: Edge[] = []
@@ -478,17 +603,30 @@ export function DashboardContent() {
               n.id === node.id ? { ...n, id: savedNode!.id } : n
             )
           )
+
+          // Update the ConfigPanel's configured node ID if this node was being configured
+          const { getConfiguredNode, setConfiguredNode } = await import('@/components/workflow/panels/ConfigPanel')
+          const configuredNodeId = getConfiguredNode()
+          if (configuredNodeId === node.id) {
+            setConfiguredNode(savedNode!.id)
+            console.log('🔄 [DATABASE] Updated ConfigPanel node ID:', {
+              oldId: node.id,
+              newId: savedNode!.id
+            })
+          }
         }
       }
 
       // Persist DAG on workflow (dag_structure + execution_order)
-      const dag = computeDagStructure(nodes, edges)
-      const topo = computeTopologicalOrder(nodes, edges)
+      // Use database node IDs for DAG computation
+      const dag = computeDagStructureWithDbIds(nodes, edges, existingDbNodes || [])
+      const topo = computeTopologicalOrderWithDbIds(nodes, edges, existingDbNodes || [])
 
       console.log('🧭 [DATABASE] Saving DAG to workflow...', {
         workflowId: workflow.id,
         dagLevelsCount: dag.length,
-        executionOrderCount: topo.length
+        executionOrderCount: topo.length,
+        usingDbIds: true
       })
 
       const { error: dagSaveError } = await WorkflowDatabaseClient.updateWorkflow(
@@ -1010,9 +1148,6 @@ export function DashboardContent() {
 
             {/* Workflow Manager */}
             <WorkflowManager
-              currentNodes={nodes}
-              currentEdges={edges}
-              currentWorkflowState={workflowState}
               onLoadWorkflow={async (nodes: Node[], edges: Edge[], state: WorkflowState) => {
                 try {
                   // The WorkflowManager is calling this with the loaded data

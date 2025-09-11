@@ -175,7 +175,7 @@ export function ConfigPanel({ currentWorkflowId }: ConfigPanelProps) {
               action: newConfig.action || 'create_card',
               board_id: newConfig.boardId,
               list_id: newConfig.listId,
-              card_name: newConfig.cardName,
+              card_name: newConfig.cardTitle, // Fixed: cardTitle -> card_name
               description: newConfig.description,
               due_date: newConfig.dueDate,
               labels: newConfig.labels || []
@@ -186,7 +186,7 @@ export function ConfigPanel({ currentWorkflowId }: ConfigPanelProps) {
               action: newConfig.action || 'create_card',
               board_id: newConfig.boardId,
               list_id: newConfig.listId,
-              card_name: newConfig.cardName,
+              card_name: newConfig.cardTitle, // Fixed: cardTitle -> card_name
               description: newConfig.description,
               due_date: newConfig.dueDate,
               labels: newConfig.labels || []
@@ -198,7 +198,7 @@ export function ConfigPanel({ currentWorkflowId }: ConfigPanelProps) {
           if (isUpdate) {
             result = await WorkflowDatabaseClient.updateAsanaConfig(selectedNodeId, {
               action: newConfig.action || 'create_task',
-              project_gid: newConfig.projectGid,
+              project_gid: newConfig.projectId, // Fixed: projectId -> project_gid
               task_name: newConfig.taskName,
               notes: newConfig.notes,
               assignee_email: newConfig.assigneeEmail,
@@ -209,7 +209,7 @@ export function ConfigPanel({ currentWorkflowId }: ConfigPanelProps) {
             result = await WorkflowDatabaseClient.createAsanaConfig({
               node_id: selectedNodeId,
               action: newConfig.action || 'create_task',
-              project_gid: newConfig.projectGid,
+              project_gid: newConfig.projectId, // Fixed: projectId -> project_gid
               task_name: newConfig.taskName,
               notes: newConfig.notes,
               assignee_email: newConfig.assigneeEmail,

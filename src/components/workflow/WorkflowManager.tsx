@@ -12,29 +12,19 @@ import {
   Search, 
   Plus, 
   FileText, 
-  Trash2, 
-  Copy, 
-  Download, 
-  Upload,
   RefreshCw,
-  Cloud,
-  CloudOff,
-  AlertCircle,
-  CheckCircle
+  Trash2,
+  AlertTriangle
 
 } from 'lucide-react'
 import { type Node, type Edge } from '@xyflow/react'
 import WorkflowDatabaseClient from '@/lib/database-client'
 import type { Workflow } from '@/types/database'
-import { validateWorkflow, type ValidationResult } from './utils/workflowValidation'
-import { exportWorkflow, downloadWorkflowFile, handleFileImport, type WorkflowExportData } from './utils/workflowImportExport'
 import { type WorkflowState } from './toolbar/WorkflowToolbar'
 import { toast } from 'sonner'
+import { useAuth } from '@/providers/AuthProvider'
 
 interface WorkflowManagerProps {
-  currentNodes: Node[]
-  currentEdges: Edge[]
-  currentWorkflowState: WorkflowState
   onLoadWorkflow: (nodes: Node[], edges: Edge[], state: WorkflowState) => void
   onCreateNew: () => void
   className?: string
@@ -44,9 +34,6 @@ interface WorkflowManagerProps {
 }
 
 export function WorkflowManager({
-  currentNodes: _currentNodes,
-  currentEdges: _currentEdges,
-  currentWorkflowState: _currentWorkflowState,
   onLoadWorkflow,
   onCreateNew,
   className = '',
@@ -56,9 +43,13 @@ export function WorkflowManager({
 }: WorkflowManagerProps) {
   const [workflows, setWorkflows] = useState<Workflow[]>([])
   const [searchQuery, setSearchQuery] = useState('')
-  const [validationResults, setValidationResults] = useState<Map<string, ValidationResult>>(new Map())
   const [internalIsOpen, setInternalIsOpen] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
+  const [workflowToDelete, setWorkflowToDelete] = useState<Workflow | null>(null)
+  
+  // Get current user from auth provider
+  const { user } = useAuth()
   
   // Use external control if provided, otherwise use internal state
   const isOpen = externalOpen !== undefined ? externalOpen : internalIsOpen
@@ -66,25 +57,40 @@ export function WorkflowManager({
 
   // Load workflows from Supabase
   const loadWorkflows = useCallback(async () => {
+    if (!user) {
+      console.warn('📋 [WORKFLOW MANAGER] User not authenticated, skipping workflow load')
+      return
+    }
+
     setIsLoading(true)
     
     try {
-      // Get workflows directly from Supabase
-      // TODO: Update WorkflowManager to work with new database schema
-      // For now, disable the workflow listing functionality
-      console.warn('WorkflowManager: Listing workflows is temporarily disabled during database migration')
-      setWorkflows([])
-      setValidationResults(new Map())
+      console.log('📋 [WORKFLOW MANAGER] Loading workflows for user:', user.id)
+      
+      // Get workflows from database
+      const { data: workflows, error } = await WorkflowDatabaseClient.getUserWorkflows(user.id)
+      
+      if (error) {
+        throw new Error(error)
+      }
+
+      console.log('✅ [WORKFLOW MANAGER] Loaded workflows:', {
+        count: workflows?.length || 0,
+        workflows: workflows?.map(w => ({ id: w.id, name: w.name, is_active: w.is_active }))
+      })
+
+      setWorkflows(workflows || [])
     } catch (error) {
-      console.error('Supabase error loading workflows:', error)
+      console.error('❌ [WORKFLOW MANAGER] Error loading workflows:', error)
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
       toast.error('Failed to load workflows', {
-        description: 'Unable to load workflows from Supabase. Please check your connection.'
+        description: errorMessage
       })
       setWorkflows([])
     } finally {
       setIsLoading(false)
     }
-  }, [])
+  }, [user])
 
   // Load workflows on mount and when dialog opens
   useEffect(() => {
@@ -102,62 +108,67 @@ export function WorkflowManager({
     : workflows
 
   // Handle load workflow
-  const handleLoadWorkflow = useCallback((workflow: Workflow) => {
-    const workflowState: WorkflowState = {
-      id: workflow.id,
-      name: workflow.name,
-      status: workflow.is_active ? 'active' : 'draft',
-      isValid: true,
-      validationErrors: []
+  const handleLoadWorkflow = useCallback(async (workflow: Workflow) => {
+    if (!user) {
+      toast.error('User not authenticated')
+      return
     }
-    
-    onLoadWorkflow(workflow.nodes, workflow.edges, workflowState)
-    setIsOpen(false)
-    toast.success('Workflow loaded successfully!', {
-      description: `Loaded "${workflow.name}"`
-    })
-  }, [onLoadWorkflow, setIsOpen])
 
-  // Handle delete workflow
-  const handleDeleteWorkflow = useCallback(async (workflowId: string) => {
     try {
-      // TODO: Update to use new database client
-      console.warn('WorkflowManager: Delete workflow is temporarily disabled during database migration')
-      throw new Error('Delete workflow functionality is temporarily disabled')
-      await loadWorkflows()
-      toast.success('Workflow deleted successfully!')
-    } catch (error) {
-      console.error('Supabase error deleting workflow:', error)
-      const errorMessage = error instanceof Error ? error.message : 'Failed to delete workflow from Supabase'
-      toast.error('Failed to delete workflow', {
-        description: errorMessage,
-        duration: 8000
-      })
-    }
-  }, [loadWorkflows])
-
-  // Handle duplicate workflow
-  const handleDuplicateWorkflow = useCallback(async (workflow: Workflow) => {
-    try {
-      // TODO: Update to use new database client
-      console.warn('WorkflowManager: Duplicate workflow is temporarily disabled during database migration')
-      throw new Error('Duplicate workflow functionality is temporarily disabled')
+      setIsLoading(true)
       
-      await loadWorkflows()
-      toast.success('Workflow duplicated successfully!', {
-        description: `Created "${duplicate.name}"`
+      console.log('📥 [WORKFLOW MANAGER] Loading workflow:', {
+        workflowId: workflow.id,
+        workflowName: workflow.name
       })
-    } catch (error) {
-      console.error('Supabase error duplicating workflow:', error)
-      toast.error('Failed to duplicate workflow', {
-        description: 'Unable to create duplicate in Supabase'
-      })
-    }
-  }, [loadWorkflows])
 
-  // Handle export workflow
-  const handleExportWorkflow = useCallback((workflow: Workflow) => {
-    try {
+      // Get workflow details
+      const { data: workflowData, error: workflowError } = await WorkflowDatabaseClient.getWorkflow(workflow.id, user.id)
+      if (workflowError) {
+        throw new Error(workflowError)
+      }
+
+      // Get workflow nodes
+      const { data: nodes, error: nodesError } = await WorkflowDatabaseClient.getWorkflowNodes(workflow.id)
+      if (nodesError) {
+        throw new Error(nodesError)
+      }
+
+      console.log('✅ [WORKFLOW MANAGER] Loaded workflow data:', {
+        workflowId: workflow.id,
+        nodesCount: nodes?.length || 0,
+        nodes: nodes?.map(n => ({ id: n.id, name: n.name, type: n.node_type, position: { x: n.position_x, y: n.position_y } }))
+      })
+
+      // Convert database nodes to React Flow nodes
+      const reactFlowNodes = nodes?.map(dbNode => {
+        // Map database node types to React Flow node types
+        const nodeTypeMapping: Record<string, string> = {
+          'trigger': 'email-trigger', // Default to email-trigger for trigger nodes
+          'trello-action': 'trello-action',
+          'asana-action': 'asana-action',
+          'logic': 'condition-logic',
+          'ai-tagging': 'ai-tagging',
+          'ai-classification': 'ai-classification'
+        }
+
+        const reactFlowNodeType = nodeTypeMapping[dbNode.node_type] || dbNode.node_type
+
+        return {
+          id: dbNode.id,
+          type: reactFlowNodeType,
+          position: { x: dbNode.position_x, y: dbNode.position_y },
+          data: {
+            label: dbNode.name,
+            nodeType: reactFlowNodeType,
+            icon: '', // Will be set based on node type
+            color: '', // Will be set based on node type
+            status: 'idle'
+          }
+        }
+      }) || []
+
+      // Create workflow state
       const workflowState: WorkflowState = {
         id: workflow.id,
         name: workflow.name,
@@ -166,46 +177,74 @@ export function WorkflowManager({
         validationErrors: []
       }
       
-      const exportData = exportWorkflow(workflow.nodes, workflow.edges, workflowState)
-      downloadWorkflowFile(exportData)
-      toast.success('Workflow exported successfully!')
+      // Load the workflow
+      onLoadWorkflow(reactFlowNodes, [], workflowState) // Empty edges for now
+      setIsOpen(false)
+      
+      toast.success('Workflow loaded successfully!', {
+        description: `Loaded "${workflow.name}" with ${reactFlowNodes.length} nodes`
+      })
     } catch (error) {
-      console.error('Export error:', error)
-      toast.error('Failed to export workflow')
+      console.error('❌ [WORKFLOW MANAGER] Error loading workflow:', error)
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+      toast.error('Failed to load workflow', {
+        description: errorMessage
+      })
+    } finally {
+      setIsLoading(false)
     }
+  }, [user, onLoadWorkflow, setIsOpen])
+
+  // Handle delete workflow confirmation
+  const handleDeleteWorkflowClick = useCallback((workflow: Workflow, event: React.MouseEvent) => {
+    event.stopPropagation() // Prevent triggering the card click to load workflow
+    setWorkflowToDelete(workflow)
+    setDeleteConfirmOpen(true)
   }, [])
 
-  // Handle import workflow
-  const handleImportWorkflow = useCallback((file: File) => {
-    handleFileImport(
-      file,
-      (data: WorkflowExportData) => {
-        // Load the imported workflow
-        const importedState: WorkflowState = {
-          ...data.workflow.state,
-          id: '', // Let Supabase generate UUID when saving
-          name: data.metadata.name
-        }
-        
-        onLoadWorkflow(data.workflow.nodes, data.workflow.edges, importedState)
-        setIsOpen(false)
-        toast.success('Workflow imported successfully!', {
-          description: `Imported "${data.metadata.name}"`
-        })
-      },
-      (error: string) => {
-        toast.error('Failed to import workflow', {
-          description: error
-        })
+  // Handle delete workflow with CASCADE
+  const handleDeleteWorkflow = useCallback(async () => {
+    if (!workflowToDelete || !user) return
+
+    try {
+      setIsLoading(true)
+      
+      console.log('🗑️ [WORKFLOW MANAGER] Deleting workflow with CASCADE:', {
+        workflowId: workflowToDelete.id,
+        workflowName: workflowToDelete.name
+      })
+
+      // Delete workflow from database (should CASCADE to delete nodes and configurations)
+      const { error } = await WorkflowDatabaseClient.deleteWorkflow(workflowToDelete.id, user.id)
+      if (error) {
+        throw new Error(error)
       }
-    )
-  }, [onLoadWorkflow, setIsOpen])
+
+      console.log('✅ [WORKFLOW MANAGER] Workflow deleted successfully:', workflowToDelete.id)
+      
+      // Reload workflows list
+      await loadWorkflows()
+      toast.success('Workflow deleted successfully!', {
+        description: `Deleted "${workflowToDelete.name}" and all its components`
+      })
+    } catch (error) {
+      console.error('❌ [WORKFLOW MANAGER] Error deleting workflow:', error)
+      const errorMessage = error instanceof Error ? error.message : 'Failed to delete workflow'
+      toast.error('Failed to delete workflow', {
+        description: errorMessage,
+        duration: 8000
+      })
+    } finally {
+      setIsLoading(false)
+      setDeleteConfirmOpen(false)
+      setWorkflowToDelete(null)
+    }
+  }, [workflowToDelete, user, loadWorkflows])
 
   // Handle manual refresh
   const handleRefresh = useCallback(async () => {
     try {
       await loadWorkflows()
-      toast.success('Workflows refreshed successfully!')
     } catch (error) {
       console.error('Error refreshing workflows:', error)
       toast.error('Failed to refresh workflows')
@@ -214,154 +253,160 @@ export function WorkflowManager({
 
   return (
     <div className={className}>
-      {!hideButton && (
-        <Dialog open={isOpen} onOpenChange={setIsOpen}>
+      <Dialog open={isOpen} onOpenChange={setIsOpen}>
+        {!hideButton && (
           <DialogTrigger asChild>
             <Button variant="outline" size="sm">
               <FileText className="h-4 w-4 mr-2" />
-              Manage Workflows
+              Load Workflow
             </Button>
           </DialogTrigger>
-          <DialogContent className="max-w-4xl max-h-[80vh]">
-            <DialogHeader>
-              <DialogTitle>Workflow Manager</DialogTitle>
-              <DialogDescription>
-                Manage your workflows stored in Supabase
-              </DialogDescription>
-            </DialogHeader>
+        )}
+        <DialogContent className="max-w-2xl max-h-[70vh] bg-[#2D2D2D] border-gray-600">
+          <DialogHeader>
+            <DialogTitle className="text-white">Select Workflow</DialogTitle>
+            <DialogDescription className="text-white/50">
+              Choose a workflow to load into the editor
+            </DialogDescription>
+          </DialogHeader>
 
-            <div className="space-y-4">
-              {/* Search and Actions */}
-              <div className="flex items-center gap-2">
-                <div className="relative flex-1">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    placeholder="Search workflows..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="pl-10"
-                  />
-                </div>
-                <Button onClick={handleRefresh} variant="outline" size="sm" disabled={isLoading}>
-                  <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
-                </Button>
-                <Button onClick={onCreateNew} size="sm">
-                  <Plus className="h-4 w-4 mr-2" />
-                  New Workflow
-                </Button>
+          <div className="space-y-4">
+            {/* Search and Actions */}
+            <div className="flex items-center gap-2">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-white/50" />
+                <Input
+                  placeholder="Search workflows..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-10 bg-[#1D1D1D] border-gray-600 text-white placeholder:text-white/50"
+                />
               </div>
-
-              {/* Workflows List */}
-              <ScrollArea className="h-[400px]">
-                {isLoading ? (
-                  <div className="flex items-center justify-center py-8">
-                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-600"></div>
-                    <span className="ml-2">Loading workflows...</span>
-                  </div>
-                ) : filteredWorkflows.length === 0 ? (
-                  <div className="text-center py-8 text-muted-foreground">
-                    {searchQuery ? 'No workflows match your search.' : 'No workflows found.'}
-                  </div>
-                ) : (
-                  <div className="space-y-2">
-                    {filteredWorkflows.map((workflow) => {
-                      const validation = validationResults.get(workflow.id)
-                      const isValid = validation?.isValid ?? true
-                      
-                      return (
-                        <Card key={workflow.id} className="hover:shadow-md transition-shadow">
-                          <CardContent className="p-4">
-                            <div className="flex items-center justify-between">
-                              <div className="flex-1 min-w-0">
-                                <div className="flex items-center gap-2">
-                                  <h3 className="font-semibold truncate">{workflow.name}</h3>
-                                  {workflow.is_active && (
-                                    <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                                      Active
-                                    </span>
-                                  )}
-                                  {!isValid && (
-                                    <AlertCircle className="h-4 w-4 text-red-500" />
-                                  )}
-                                </div>
-                                {workflow.description && (
-                                  <p className="text-sm text-muted-foreground mt-1 truncate">
-                                    {workflow.description}
-                                  </p>
-                                )}
-                                <div className="flex items-center gap-4 mt-2 text-xs text-muted-foreground">
-                                  <span>{workflow.node_count || 0} nodes</span>
-                                  <span>{workflow.edge_count || 0} edges</span>
-                                  <span>Updated {new Date(workflow.updated_at).toLocaleDateString()}</span>
-                                </div>
-                              </div>
-                              
-                              <div className="flex items-center gap-1">
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => handleLoadWorkflow(workflow)}
-                                  disabled={!isValid}
-                                >
-                                  <FileText className="h-4 w-4" />
-                                </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => handleDuplicateWorkflow(workflow)}
-                                >
-                                  <Copy className="h-4 w-4" />
-                                </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => handleExportWorkflow(workflow)}
-                                >
-                                  <Download className="h-4 w-4" />
-                                </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => handleDeleteWorkflow(workflow.id)}
-                                  className="text-red-600 hover:text-red-700"
-                                >
-                                  <Trash2 className="h-4 w-4" />
-                                </Button>
-                              </div>
-                            </div>
-                          </CardContent>
-                        </Card>
-                      )
-                    })}
-                  </div>
-                )}
-              </ScrollArea>
-
-              {/* Import Section */}
-              <div className="border-t pt-4">
-                <h3 className="font-medium mb-2">Import Workflow</h3>
-                <div className="flex items-center gap-2">
-                  <Input
-                    type="file"
-                    accept=".json"
-                    onChange={(e) => {
-                      const file = e.target.files?.[0]
-                      if (file) {
-                        handleImportWorkflow(file)
-                      }
-                    }}
-                    className="flex-1"
-                  />
-                  <Button variant="outline" size="sm">
-                    <Upload className="h-4 w-4 mr-2" />
-                    Import
-                  </Button>
-                </div>
-              </div>
+              <Button 
+                onClick={handleRefresh} 
+                variant="outline" 
+                size="sm" 
+                disabled={isLoading}
+                className="border-gray-600 text-white hover:bg-gray-600"
+              >
+                <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
+              </Button>
+              <Button 
+                onClick={() => {
+                  onCreateNew()
+                  setIsOpen(false)
+                }} 
+                size="sm"
+                className="bg-[#8b5cf6] hover:bg-[#7c3aed] text-white"
+              >
+                <Plus className="h-4 w-4 mr-2" />
+                New Workflow
+              </Button>
             </div>
-          </DialogContent>
-        </Dialog>
-      )}
+
+            {/* Workflows List */}
+            <ScrollArea className="h-[400px]">
+              {isLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#8b5cf6]"></div>
+                  <span className="ml-2 text-white">Loading workflows...</span>
+                </div>
+              ) : filteredWorkflows.length === 0 ? (
+                <div className="text-center py-8 text-white/50">
+                  {searchQuery ? 'No workflows match your search.' : 'No workflows found.'}
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {filteredWorkflows.map((workflow) => {
+                    return (
+                      <Card 
+                        key={workflow.id} 
+                        className="bg-[#1D1D1D] border-gray-600 hover:bg-[#252525] transition-colors cursor-pointer"
+                        onClick={() => handleLoadWorkflow(workflow)}
+                      >
+                        <CardContent className="p-4">
+                          <div className="flex items-center justify-between">
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2">
+                                <h3 className="font-semibold truncate text-white">{workflow.name}</h3>
+                                {workflow.is_active && (
+                                  <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-600 text-white">
+                                    Active
+                                  </span>
+                                )}
+                              </div>
+                              {workflow.description && (
+                                <p className="text-sm text-white/50 mt-1 truncate">
+                                  {workflow.description}
+                                </p>
+                              )}
+                            </div>
+                            
+                            <div className="flex items-center">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={(e) => handleDeleteWorkflowClick(workflow, e)}
+                                disabled={isLoading}
+                                className="text-gray-400 hover:text-red-500 hover:bg-transparent"
+                                title="Delete workflow"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    )
+                  })}
+                </div>
+              )}
+            </ScrollArea>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
+        <DialogContent className="max-w-md bg-[#2D2D2D] border-gray-600">
+          <DialogHeader>
+            <DialogTitle className="text-white">
+              Delete Workflow
+            </DialogTitle>
+            <DialogDescription className="text-white/50">
+              Are you sure you want to delete "{workflowToDelete?.name}"?
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex justify-end gap-3 pt-4">
+            <Button
+              variant="outline"
+              onClick={() => setDeleteConfirmOpen(false)}
+              disabled={isLoading}
+              className="border-gray-600 text-white hover:bg-gray-600"
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleDeleteWorkflow}
+              disabled={isLoading}
+              className="bg-red-600 hover:bg-red-700 text-white"
+            >
+              {isLoading ? (
+                <>
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                  Deleting...
+                </>
+              ) : (
+                <>
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Delete
+                </>
+              )}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
