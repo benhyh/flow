@@ -5,8 +5,6 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { 
   Play, 
-  Power, 
-  Pause,
   FileText,
   Save
 } from 'lucide-react'
@@ -153,22 +151,7 @@ export function WorkflowToolbar({
     onSave()
   }, [validateWorkflow, onWorkflowStateChange, onSave])
 
-  // Handle status toggle
-  const handleToggleStatus = useCallback(() => {
-    const validation = validateWorkflow()
-    
-    if (workflowState.status === 'draft' && !validation.isValid) {
-      onWorkflowStateChange({ 
-        isValid: validation.isValid, 
-        validationErrors: validation.errors 
-      })
-      return
-    }
-    
-    onToggleStatus()
-  }, [validateWorkflow, workflowState.status, onWorkflowStateChange, onToggleStatus])
 
-  const canActivate = workflowState.status === 'draft' || workflowState.status === 'paused'
 
 
 
@@ -202,10 +185,7 @@ export function WorkflowToolbar({
           {/* Management buttons inline with title */}
           <div className="flex items-center">
             <Button
-              onClick={() => {
-                console.log('🔧 [WORKFLOW TOOLBAR] Manage workflows button clicked')
-                onManageWorkflows()
-              }}
+              onClick={onManageWorkflows}
               variant="ghost"
               className="h-8 px-2 text-white hover:text-[#8b5cf6] hover:bg-transparent cursor-pointer"
               title="Manage Workflows"
@@ -229,33 +209,10 @@ export function WorkflowToolbar({
           <Button
             onClick={handleRunTest}
             disabled={workflowState.status === 'testing'}
-            className="bg-[#3d3d3d] hover:bg-[#3d3d3d]/80 text-white h-8 px-3 text-sm cursor-pointer"
+            className="bg-[#8b5cf6] hover:bg-[#7c3aed] text-white h-8 px-3 text-sm cursor-pointer"
           >
             <Play size={14} className="mr-1" />
             {workflowState.status === 'testing' ? 'Testing...' : 'Run Test'}
-          </Button>
-
-          {/* Enable/Disable toggle */}
-          <Button
-            onClick={handleToggleStatus}
-            disabled={workflowState.status === 'testing' || (!workflowState.isValid && canActivate)}
-            className={`h-8 px-3 text-sm ${
-              canActivate 
-                ? 'bg-[#8b5cf6] hover:bg-[#7c3aed] text-white' 
-                : 'bg-yellow-600 hover:bg-yellow-700 text-white'
-            }`}
-          >
-            {canActivate ? (
-              <>
-                <Power size={14} className="mr-1" />
-                Activate
-              </>
-            ) : (
-              <>
-                <Pause size={14} className="mr-1" />
-                Pause
-              </>
-            )}
           </Button>
         </div>
       </div>

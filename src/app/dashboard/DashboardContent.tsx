@@ -61,6 +61,215 @@ import type { WorkflowState } from '@/components/workflow/toolbar/WorkflowToolba
 
 import '@xyflow/react/dist/style.css'
 
+// =============================================================================
+// DAG utilities (client-side)
+// =============================================================================
+
+function computeTopologicalOrder(nodes: Node[], edges: Edge[]): string[] {
+  const nodeIds = nodes.map(n => n.id)
+  const adjacency: Record<string, string[]> = {}
+  const inDegree: Record<string, number> = {}
+  nodeIds.forEach(id => {
+    adjacency[id] = []
+    inDegree[id] = 0
+  })
+  edges.forEach(e => {
+    if (adjacency[e.source]) {
+      adjacency[e.source].push(e.target)
+    }
+    if (inDegree[e.target] !== undefined) {
+      inDegree[e.target] += 1
+    }
+  })
+
+  const queue: string[] = []
+  Object.keys(inDegree).forEach(id => {
+    if (inDegree[id] === 0) queue.push(id)
+  })
+
+  const order: string[] = []
+  let idx = 0
+  while (idx < queue.length) {
+    const current = queue[idx++]
+    order.push(current)
+    for (const neighbor of adjacency[current]) {
+      inDegree[neighbor] -= 1
+      if (inDegree[neighbor] === 0) queue.push(neighbor)
+    }
+  }
+
+  // If cycle detected (order shorter), return what we have to avoid blocking save
+  return order
+}
+
+function computeDagStructure(nodes: Node[], edges: Edge[]): string[][] {
+  // Level-based decomposition using in-degree layering
+  const nodeIds = nodes.map(n => n.id)
+  const adjacency: Record<string, string[]> = {}
+  const inDegree: Record<string, number> = {}
+  nodeIds.forEach(id => {
+    adjacency[id] = []
+    inDegree[id] = 0
+  })
+  edges.forEach(e => {
+    if (adjacency[e.source]) adjacency[e.source].push(e.target)
+    if (inDegree[e.target] !== undefined) inDegree[e.target] += 1
+  })
+
+  const levels: string[][] = []
+  let currentLevel: string[] = Object.keys(inDegree).filter(id => inDegree[id] === 0)
+  const remainingInDegree: Record<string, number> = { ...inDegree }
+
+  const visited: Set<string> = new Set()
+  while (currentLevel.length > 0) {
+    levels.push(currentLevel)
+    const nextLevelCandidates: string[] = []
+    for (const id of currentLevel) {
+      visited.add(id)
+      for (const neighbor of adjacency[id]) {
+        remainingInDegree[neighbor] -= 1
+        if (remainingInDegree[neighbor] === 0) {
+          nextLevelCandidates.push(neighbor)
+        }
+      }
+    }
+    currentLevel = nextLevelCandidates.filter(id => !visited.has(id))
+  }
+
+  // Include any isolated or cyclic nodes not covered
+  const uncovered = nodeIds.filter(id => !levels.flat().includes(id))
+  if (uncovered.length > 0) {
+    levels.push(uncovered)
+  }
+
+  return levels
+}
+
+// Create mapping from React Flow node IDs to database node IDs
+function createNodeIdMapping(nodes: Node[], dbNodes: DatabaseNode[]): Record<string, string> {
+  const mapping: Record<string, string> = {}
+  
+  // For existing nodes, map React Flow ID to database ID
+  dbNodes.forEach(dbNode => {
+    const reactFlowNode = nodes.find(n => n.id === dbNode.id)
+    if (reactFlowNode) {
+      mapping[reactFlowNode.id] = dbNode.id
+    }
+  })
+  
+  // For new nodes (not yet in database), use the React Flow ID as-is
+  nodes.forEach(node => {
+    if (!mapping[node.id]) {
+      mapping[node.id] = node.id
+    }
+  })
+  
+  return mapping
+}
+
+function computeDagStructureWithDbIds(nodes: Node[], edges: Edge[], dbNodes: DatabaseNode[]): string[][] {
+  const idMapping = createNodeIdMapping(nodes, dbNodes)
+  
+  // Convert edges to use database IDs
+  const dbEdges = edges.map(edge => ({
+    source: idMapping[edge.source] || edge.source,
+    target: idMapping[edge.target] || edge.target
+  }))
+  
+  // Get all unique node IDs (database IDs)
+  const allDbNodeIds = Array.from(new Set([
+    ...dbNodes.map(n => n.id),
+    ...Object.values(idMapping)
+  ]))
+  
+  const adjacency: Record<string, string[]> = {}
+  const inDegree: Record<string, number> = {}
+  allDbNodeIds.forEach(id => {
+    adjacency[id] = []
+    inDegree[id] = 0
+  })
+  
+  dbEdges.forEach(e => {
+    if (adjacency[e.source]) adjacency[e.source].push(e.target)
+    if (inDegree[e.target] !== undefined) inDegree[e.target] += 1
+  })
+
+  const levels: string[][] = []
+  let currentLevel: string[] = Object.keys(inDegree).filter(id => inDegree[id] === 0)
+  const remainingInDegree: Record<string, number> = { ...inDegree }
+
+  const visited: Set<string> = new Set()
+  while (currentLevel.length > 0) {
+    levels.push(currentLevel)
+    const nextLevelCandidates: string[] = []
+    for (const id of currentLevel) {
+      visited.add(id)
+      for (const neighbor of adjacency[id]) {
+        remainingInDegree[neighbor] -= 1
+        if (remainingInDegree[neighbor] === 0) {
+          nextLevelCandidates.push(neighbor)
+        }
+      }
+    }
+    currentLevel = nextLevelCandidates.filter(id => !visited.has(id))
+  }
+
+  // Include any isolated or cyclic nodes not covered
+  const uncovered = allDbNodeIds.filter(id => !levels.flat().includes(id))
+  if (uncovered.length > 0) {
+    levels.push(uncovered)
+  }
+
+  return levels
+}
+
+function computeTopologicalOrderWithDbIds(nodes: Node[], edges: Edge[], dbNodes: DatabaseNode[]): string[] {
+  const idMapping = createNodeIdMapping(nodes, dbNodes)
+  
+  // Convert edges to use database IDs
+  const dbEdges = edges.map(edge => ({
+    source: idMapping[edge.source] || edge.source,
+    target: idMapping[edge.target] || edge.target
+  }))
+  
+  // Get all unique node IDs (database IDs)
+  const allDbNodeIds = Array.from(new Set([
+    ...dbNodes.map(n => n.id),
+    ...Object.values(idMapping)
+  ]))
+  
+  const adjacency: Record<string, string[]> = {}
+  const inDegree: Record<string, number> = {}
+  allDbNodeIds.forEach(id => {
+    adjacency[id] = []
+    inDegree[id] = 0
+  })
+  
+  dbEdges.forEach(e => {
+    if (adjacency[e.source]) adjacency[e.source].push(e.target)
+    if (inDegree[e.target] !== undefined) inDegree[e.target] += 1
+  })
+
+  const queue: string[] = []
+  Object.keys(inDegree).forEach(id => {
+    if (inDegree[id] === 0) queue.push(id)
+  })
+
+  const order: string[] = []
+  let idx = 0
+  while (idx < queue.length) {
+    const current = queue[idx++]
+    order.push(current)
+    for (const neighbor of adjacency[current]) {
+      inDegree[neighbor] -= 1
+      if (inDegree[neighbor] === 0) queue.push(neighbor)
+    }
+  }
+
+  // If cycle detected (order shorter), return what we have to avoid blocking save
+  return order
+}
+
 // Start with empty canvas for better onboarding experience
 const initialNodes: Node[] = []
 const initialEdges: Edge[] = []
@@ -127,7 +336,7 @@ export function DashboardContent() {
       'schedule-trigger': 'trigger',
       'trello-action': 'trello-action',
       'asana-action': 'asana-action',
-      'logic': 'logic',
+      'condition-logic': 'logic',
       'ai-tagging': 'ai-tagging',
       'ai-classification': 'ai-classification'
     }
@@ -151,32 +360,44 @@ export function DashboardContent() {
   }, [currentWorkflow?.id])
 
   const convertDatabaseNodeToReactFlow = useCallback((dbNode: DatabaseNode): Node => {
-    // Map database node types back to React Flow node types
-    const reverseNodeTypeMapping: Record<NodeType, string> = {
+    // Map database node types to React Flow base node types
+    const baseNodeTypeMapping: Record<NodeType, string> = {
+      'trigger': 'trigger',
+      'trello-action': 'action',
+      'asana-action': 'action',
+      'logic': 'logic',
+      'ai-tagging': 'ai',
+      'ai-classification': 'ai'
+    }
+
+    // Map database node types to their subtypes for data.nodeType
+    const nodeSubtypeMapping: Record<NodeType, string> = {
       'trigger': 'email-trigger', // Default to email-trigger for trigger nodes
       'trello-action': 'trello-action',
       'asana-action': 'asana-action',
-      'logic': 'logic',
+      'logic': 'condition-logic',
       'ai-tagging': 'ai-tagging',
       'ai-classification': 'ai-classification'
     }
 
-    const reactFlowNodeType = reverseNodeTypeMapping[dbNode.node_type] || dbNode.node_type
+    const reactFlowNodeType = baseNodeTypeMapping[dbNode.node_type] || 'trigger'
+    const nodeSubtype = nodeSubtypeMapping[dbNode.node_type] || 'email-trigger'
 
     console.log('🔄 [NODE CONVERSION] Converting database node to React Flow:', {
       databaseNodeType: dbNode.node_type,
       reactFlowNodeType: reactFlowNodeType,
+      nodeSubtype: nodeSubtype,
       nodeId: dbNode.id,
       nodeLabel: dbNode.name
     })
 
     return {
       id: dbNode.id,
-      type: reactFlowNodeType,
+      type: reactFlowNodeType, // Use base type for React Flow
       position: { x: dbNode.position_x, y: dbNode.position_y },
       data: {
         label: dbNode.name,
-        nodeType: reactFlowNodeType,
+        nodeType: nodeSubtype, // Use subtype for custom node rendering
         icon: '', // Will be set based on node type
         color: '', // Will be set based on node type
         status: 'idle'
@@ -184,6 +405,7 @@ export function DashboardContent() {
     }
   }, [])
 
+  // Deprecated: connections are no longer persisted; DAG is saved on workflows table
   const convertReactFlowEdgeToDatabase = useCallback((edge: Edge): CreateConnectionRequest => {
     return {
       workflow_id: currentWorkflow?.id || '',
@@ -393,80 +615,62 @@ export function DashboardContent() {
               n.id === node.id ? { ...n, id: savedNode!.id } : n
             )
           )
-        }
-      }
 
-      // Sync connections (create, update, delete)
-      console.log('🔗 [DATABASE] Syncing connections...', {
-        workflowId: workflow.id,
-        connectionsCount: edges.length,
-        connections: edges.map(edge => ({
-          id: edge.id,
-          source: edge.source,
-          target: edge.target,
-          type: edge.type
-        }))
-      })
-
-      // Get existing connections from database
-      const { data: existingDbConnections, error: fetchConnectionsError } = await WorkflowDatabaseClient.getWorkflowConnections(workflow.id)
-      if (fetchConnectionsError) {
-        console.error('❌ [DATABASE] Failed to fetch existing connections:', fetchConnectionsError)
-        throw new Error(fetchConnectionsError)
-      }
-
-      const existingConnectionIds = new Set(existingDbConnections?.map(c => c.id) || [])
-      const currentConnectionIds = new Set(edges.map(e => e.id))
-
-      // Delete connections that no longer exist in React Flow
-      const connectionsToDelete = existingDbConnections?.filter(dbConnection => !currentConnectionIds.has(dbConnection.id)) || []
-      for (const connectionToDelete of connectionsToDelete) {
-        console.log('🗑️ [DATABASE] Deleting connection:', {
-          connectionId: connectionToDelete.id,
-          sourceNodeId: connectionToDelete.source_node_id,
-          targetNodeId: connectionToDelete.target_node_id
-        })
-
-        const { error: deleteError } = await WorkflowDatabaseClient.deleteConnection(connectionToDelete.id)
-        if (deleteError) {
-          console.error('❌ [DATABASE] Connection deletion failed:', {
-            connectionId: connectionToDelete.id,
-            error: deleteError
-          })
-        } else {
-          console.log('✅ [DATABASE] Connection deleted successfully:', {
-            connectionId: connectionToDelete.id
-          })
-        }
-      }
-
-      // Create new connections
-      for (const edge of edges) {
-        if (!existingConnectionIds.has(edge.id)) {
-          const connectionRequest = convertReactFlowEdgeToDatabase(edge)
-          connectionRequest.workflow_id = workflow.id
-
-          console.log('🔗 [DATABASE] Creating connection:', {
-            connectionId: edge.id,
-            workflowId: workflow.id,
-            sourceNodeId: connectionRequest.source_node_id,
-            targetNodeId: connectionRequest.target_node_id
-          })
-
-          const { error: connectionError } = await WorkflowDatabaseClient.createConnection(connectionRequest)
-          if (connectionError) {
-            console.error('❌ [DATABASE] Connection creation failed:', {
-              connectionId: edge.id,
-              error: connectionError
-            })
-          } else {
-            console.log('✅ [DATABASE] Connection created successfully:', {
-              connectionId: edge.id,
-              sourceNodeId: connectionRequest.source_node_id,
-              targetNodeId: connectionRequest.target_node_id
+          // Update the ConfigPanel's configured node ID if this node was being configured
+          const { getConfiguredNode, setConfiguredNode } = await import('@/components/workflow/panels/ConfigPanel')
+          const configuredNodeId = getConfiguredNode()
+          if (configuredNodeId === node.id) {
+            setConfiguredNode(savedNode!.id)
+            console.log('🔄 [DATABASE] Updated ConfigPanel node ID:', {
+              oldId: node.id,
+              newId: savedNode!.id
             })
           }
         }
+      }
+
+      // Persist DAG and connections on workflow 
+      // Use database node IDs for DAG computation
+      const dag = computeDagStructureWithDbIds(nodes, edges, existingDbNodes || [])
+      const topo = computeTopologicalOrderWithDbIds(nodes, edges, existingDbNodes || [])
+
+      // Store connections with database node IDs for reconstruction
+      const idMapping = createNodeIdMapping(nodes, existingDbNodes || [])
+      const connectionsWithDbIds = edges.map(edge => ({
+        id: edge.id,
+        source: idMapping[edge.source] || edge.source,
+        target: idMapping[edge.target] || edge.target,
+        sourceHandle: edge.sourceHandle || null,
+        targetHandle: edge.targetHandle || null,
+        type: edge.type || 'default'
+      }))
+
+      console.log('🧭 [DATABASE] Saving DAG and connections to workflow...', {
+        workflowId: workflow.id,
+        dagLevelsCount: dag.length,
+        executionOrderCount: topo.length,
+        connectionsCount: connectionsWithDbIds.length,
+        connections: connectionsWithDbIds,
+        usingDbIds: true
+      })
+
+      // For MVP: Store connections in localStorage as backup while we enhance the database
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(`workflow_connections_${workflow.id}`, JSON.stringify(connectionsWithDbIds))
+      }
+
+      const { error: dagSaveError } = await WorkflowDatabaseClient.updateWorkflow(
+        workflow.id,
+        user.id,
+        {
+          dag_structure: dag,
+          execution_order: topo
+        }
+      )
+      if (dagSaveError) {
+        console.error('❌ [DATABASE] Failed to save DAG to workflow:', dagSaveError)
+        // Do not throw; nodes already saved. Surface error to UI only.
+        setSaveError(dagSaveError)
       }
 
       // Update workflow state with the saved workflow
@@ -556,25 +760,42 @@ export function DashboardContent() {
       })
       setNodes(reactFlowNodes)
 
-      // Get connections
-      console.log('🔍 [DATABASE] Fetching workflow connections...', { workflowId })
-      const { data: dbConnections, error: connectionsError } = await WorkflowDatabaseClient.getWorkflowConnections(workflowId)
-      if (connectionsError) {
-        console.error('❌ [DATABASE] Connections fetch failed:', connectionsError)
-        throw new Error(connectionsError)
+      // Restore connections from localStorage (MVP solution)
+      let restoredEdges: Edge[] = []
+      if (typeof window !== 'undefined') {
+        try {
+          const savedConnections = localStorage.getItem(`workflow_connections_${workflowId}`)
+          if (savedConnections) {
+            const connectionsData = JSON.parse(savedConnections)
+            console.log('🔗 [DATABASE] Restoring connections from localStorage:', {
+              connectionsCount: connectionsData.length,
+              connections: connectionsData
+            })
+            
+            // Convert back to React Flow edges with current node IDs
+            restoredEdges = connectionsData.map((conn: any) => ({
+              id: conn.id,
+              source: conn.source,
+              target: conn.target,
+              sourceHandle: conn.sourceHandle,
+              targetHandle: conn.targetHandle,
+              type: conn.type || 'default'
+            }))
+          }
+        } catch (error) {
+          console.error('❌ [DATABASE] Error restoring connections:', error)
+        }
       }
-
-      const reactFlowEdges = dbConnections?.map(convertDatabaseConnectionToReactFlow) || []
-      console.log('✅ [DATABASE] Connections fetched successfully:', {
-        connectionsCount: reactFlowEdges.length,
-        connections: reactFlowEdges.map(edge => ({
+      
+      console.log('✅ [DATABASE] Connections restored:', {
+        connectionsCount: restoredEdges.length,
+        connections: restoredEdges.map(edge => ({
           id: edge.id,
           source: edge.source,
-          target: edge.target,
-          type: edge.type
+          target: edge.target
         }))
       })
-      setEdges(reactFlowEdges)
+      setEdges(restoredEdges)
 
       // Update workflow state
       updateWorkflowState({
@@ -587,11 +808,11 @@ export function DashboardContent() {
         workflowId: workflow.id,
         name: workflow.name,
         nodesLoaded: reactFlowNodes.length,
-        connectionsLoaded: reactFlowEdges.length,
+        connectionsLoaded: restoredEdges.length,
         timestamp: new Date().toISOString()
       })
 
-      return { workflow, nodes: reactFlowNodes, edges: reactFlowEdges }
+      return { workflow, nodes: reactFlowNodes, edges: restoredEdges }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to load workflow'
       console.error('💥 [DATABASE] Workflow load operation failed:', {
@@ -679,7 +900,37 @@ export function DashboardContent() {
   }, [user, loading, router])
 
   const onNodesChange = useCallback(
-    (changes: NodeChange[]) => {
+    async (changes: NodeChange[]) => {
+      // Check for node deletions and delete from database
+      const deleteChanges = changes.filter(change => change.type === 'remove')
+      for (const deleteChange of deleteChanges) {
+        if (deleteChange.type === 'remove') {
+          console.log('🗑️ [DASHBOARD] Node deleted from canvas, deleting from database:', {
+            nodeId: deleteChange.id
+          })
+          
+          try {
+            const { error } = await WorkflowDatabaseClient.deleteNode(deleteChange.id)
+            if (error) {
+              console.error('❌ [DASHBOARD] Failed to delete node from database:', {
+                nodeId: deleteChange.id,
+                error
+              })
+              // Show error toast or handle gracefully
+            } else {
+              console.log('✅ [DASHBOARD] Node deleted from database successfully:', {
+                nodeId: deleteChange.id
+              })
+            }
+          } catch (error) {
+            console.error('❌ [DASHBOARD] Error deleting node from database:', {
+              nodeId: deleteChange.id,
+              error
+            })
+          }
+        }
+      }
+
       setNodes(nodesSnapshot => {
         const newNodes = applyNodeChanges(changes, nodesSnapshot)
         // Schedule snapshot for undo/redo (debounced)
@@ -695,7 +946,7 @@ export function DashboardContent() {
   )
 
   const onEdgesChange = useCallback(
-    (changes: EdgeChange[]) => {
+    async (changes: EdgeChange[]) => {
       setEdges(edgesSnapshot => {
         const newEdges = applyEdgeChanges(changes, edgesSnapshot)
         // Schedule snapshot for undo/redo (debounced)
@@ -943,10 +1194,7 @@ export function DashboardContent() {
                 }
               }}
               onToggleStatus={handleToggleStatus}
-              onManageWorkflows={() => {
-                console.log('🔧 [DASHBOARD] onManageWorkflows called, setting workflowManagerOpen to true')
-                setWorkflowManagerOpen(true)
-              }}
+              onManageWorkflows={() => setWorkflowManagerOpen(true)}
             />
           }
           sidebar={<NodeLibrary />}
@@ -964,9 +1212,6 @@ export function DashboardContent() {
 
             {/* Workflow Manager */}
             <WorkflowManager
-              currentNodes={nodes}
-              currentEdges={edges}
-              currentWorkflowState={workflowState}
               onLoadWorkflow={async (nodes: Node[], edges: Edge[], state: WorkflowState) => {
                 try {
                   // The WorkflowManager is calling this with the loaded data
@@ -986,6 +1231,32 @@ export function DashboardContent() {
                   )
                 } catch (error) {
                   console.error('Failed to load workflow:', error)
+                }
+              }}
+              onWorkflowDeleted={(deletedWorkflowId: string) => {
+                // Check if the deleted workflow is the currently active one
+                if (currentWorkflow && currentWorkflow.id === deletedWorkflowId) {
+                  console.log('🔄 [DASHBOARD] Current workflow was deleted, resetting to new workflow:', {
+                    deletedWorkflowId,
+                    currentWorkflowId: currentWorkflow.id,
+                    currentWorkflowName: currentWorkflow.name
+                  })
+                  
+                  // Reset to a new workflow
+                  const newState = createNewWorkflow()
+                  setNodes([])
+                  setEdges([])
+                  updateWorkflowState(newState)
+                  
+                  // Clear undo/redo history
+                  undoRedo.clearHistory()
+                  
+                  // Clear current workflow and save errors
+                  setCurrentWorkflow(null)
+                  setSaveError(null)
+                  
+                  // Close the workflow manager dialog
+                  setWorkflowManagerOpen(false)
                 }
               }}
               open={workflowManagerOpen}
@@ -1032,7 +1303,7 @@ export function DashboardContent() {
             >
               <Background />
               <AdvancedCanvasControls nodes={nodes} showMinimap={true} />
-              <ConfigPanel />
+              <ConfigPanel currentWorkflowId={currentWorkflow?.id} />
             </ReactFlow>
 
           </div>

@@ -16,6 +16,9 @@ export interface Workflow {
   last_modified_at: string
   last_executed_at?: string
   created_at: string
+  // DAG representation (optional for backwards compatibility)
+  dag_structure?: string[][]
+  execution_order?: string[]
 }
 
 export interface Node {
@@ -119,6 +122,7 @@ export interface GmailNodeConfig {
 export interface AINodeConfig {
   id: string
   node_id: string
+  ai_type: 'ai-tagging' | 'ai-classification'
   action: AIAction
   prompt_template: string
   model: string
@@ -226,6 +230,9 @@ export interface UpdateWorkflowRequest {
   name?: string
   description?: string
   is_active?: boolean
+  // Allow updating DAG structure and execution order on manual save
+  dag_structure?: string[][]
+  execution_order?: string[]
 }
 
 export interface CreateNodeRequest {
