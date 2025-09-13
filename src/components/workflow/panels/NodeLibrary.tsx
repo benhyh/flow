@@ -91,23 +91,23 @@ const nodeTypes: NodeTypeDefinition[] = [
     color: '#f59e0b', // amber
   },
   
-  // AI Nodes
+  // Utility Nodes
   {
-    id: 'ai-tagging',
+    id: 'manual-tagging',
     type: 'ai',
     subtype: 'ai-tagging',
-    label: 'AI Tagging',
+    label: 'Content Tagging',
     icon: 'Tag',
-    description: 'AI-powered content tagging',
+    description: 'Manually tag content with labels',
     color: '#8b5cf6', // purple (Flow brand color)
   },
   {
-    id: 'ai-classification',
+    id: 'manual-classification',
     type: 'ai',
     subtype: 'ai-classification',
-    label: 'AI Classification',
+    label: 'Content Classification',
     icon: 'Group',
-    description: 'AI-powered content classification',
+    description: 'Manually classify content into categories',
     color: '#8b5cf6', // purple
   },
 ]
@@ -265,11 +265,11 @@ export function NodeLibrary({ className = '', collapsed = false }: NodeLibraryPr
         </div>
       </div>
 
-      {/* AI Nodes Section */}
+      {/* Utility Nodes Section */}
       <div className="mb-6">
         <h3 className={`text-sm font-medium text-gray-300 mb-3 flex items-center ${collapsed ? 'justify-center' : ''}`}>
           <Sparkles size={16} className={collapsed ? '' : 'mr-2'} />
-          {!collapsed && 'AI Nodes'}
+          {!collapsed && 'Utility Nodes'}
         </h3>
         <div className="space-y-2">
           {nodeCategories.ai.map((node) => (

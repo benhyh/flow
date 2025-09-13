@@ -15,11 +15,11 @@ export interface BaseNodeData {
 }
 
 interface AINodeData extends BaseNodeData {
-  aiType?: 'tagging' | 'classification' | 'sentiment' | 'extraction'
+  utilityType?: 'tagging' | 'classification'
   config?: {
-    // AI Tagging
+    // Manual Tagging
     selectedTags?: string[]
-    // AI Classification
+    // Manual Classification
     selectedCategories?: string[]
     targetType?: string
   }
@@ -92,7 +92,7 @@ export function AINode(props: NodeProps) {
         </button>
       )}
 
-      {/* AI Icon - Tag or Users based on type */}
+      {/* Utility Icon - Tag or Group based on type */}
       {getIcon()}
 
       {/* Target Handle (Input) */}

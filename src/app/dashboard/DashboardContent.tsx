@@ -360,32 +360,44 @@ export function DashboardContent() {
   }, [currentWorkflow?.id])
 
   const convertDatabaseNodeToReactFlow = useCallback((dbNode: DatabaseNode): Node => {
-    // Map database node types back to React Flow node types
-    const reverseNodeTypeMapping: Record<NodeType, string> = {
+    // Map database node types to React Flow base node types
+    const baseNodeTypeMapping: Record<NodeType, string> = {
+      'trigger': 'trigger',
+      'trello-action': 'action',
+      'asana-action': 'action',
+      'logic': 'logic',
+      'ai-tagging': 'ai',
+      'ai-classification': 'ai'
+    }
+
+    // Map database node types to their subtypes for data.nodeType
+    const nodeSubtypeMapping: Record<NodeType, string> = {
       'trigger': 'email-trigger', // Default to email-trigger for trigger nodes
       'trello-action': 'trello-action',
       'asana-action': 'asana-action',
-      'logic': 'logic',
+      'logic': 'condition-logic',
       'ai-tagging': 'ai-tagging',
       'ai-classification': 'ai-classification'
     }
 
-    const reactFlowNodeType = reverseNodeTypeMapping[dbNode.node_type] || dbNode.node_type
+    const reactFlowNodeType = baseNodeTypeMapping[dbNode.node_type] || 'trigger'
+    const nodeSubtype = nodeSubtypeMapping[dbNode.node_type] || 'email-trigger'
 
     console.log('🔄 [NODE CONVERSION] Converting database node to React Flow:', {
       databaseNodeType: dbNode.node_type,
       reactFlowNodeType: reactFlowNodeType,
+      nodeSubtype: nodeSubtype,
       nodeId: dbNode.id,
       nodeLabel: dbNode.name
     })
 
     return {
       id: dbNode.id,
-      type: reactFlowNodeType,
+      type: reactFlowNodeType, // Use base type for React Flow
       position: { x: dbNode.position_x, y: dbNode.position_y },
       data: {
         label: dbNode.name,
-        nodeType: reactFlowNodeType,
+        nodeType: nodeSubtype, // Use subtype for custom node rendering
         icon: '', // Will be set based on node type
         color: '', // Will be set based on node type
         status: 'idle'
@@ -617,17 +629,35 @@ export function DashboardContent() {
         }
       }
 
-      // Persist DAG on workflow (dag_structure + execution_order)
+      // Persist DAG and connections on workflow 
       // Use database node IDs for DAG computation
       const dag = computeDagStructureWithDbIds(nodes, edges, existingDbNodes || [])
       const topo = computeTopologicalOrderWithDbIds(nodes, edges, existingDbNodes || [])
 
-      console.log('🧭 [DATABASE] Saving DAG to workflow...', {
+      // Store connections with database node IDs for reconstruction
+      const idMapping = createNodeIdMapping(nodes, existingDbNodes || [])
+      const connectionsWithDbIds = edges.map(edge => ({
+        id: edge.id,
+        source: idMapping[edge.source] || edge.source,
+        target: idMapping[edge.target] || edge.target,
+        sourceHandle: edge.sourceHandle || null,
+        targetHandle: edge.targetHandle || null,
+        type: edge.type || 'default'
+      }))
+
+      console.log('🧭 [DATABASE] Saving DAG and connections to workflow...', {
         workflowId: workflow.id,
         dagLevelsCount: dag.length,
         executionOrderCount: topo.length,
+        connectionsCount: connectionsWithDbIds.length,
+        connections: connectionsWithDbIds,
         usingDbIds: true
       })
+
+      // For MVP: Store connections in localStorage as backup while we enhance the database
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(`workflow_connections_${workflow.id}`, JSON.stringify(connectionsWithDbIds))
+      }
 
       const { error: dagSaveError } = await WorkflowDatabaseClient.updateWorkflow(
         workflow.id,
@@ -730,8 +760,42 @@ export function DashboardContent() {
       })
       setNodes(reactFlowNodes)
 
-      // Connections are not fetched; edges remain client-side only for now
-      setEdges([])
+      // Restore connections from localStorage (MVP solution)
+      let restoredEdges: Edge[] = []
+      if (typeof window !== 'undefined') {
+        try {
+          const savedConnections = localStorage.getItem(`workflow_connections_${workflowId}`)
+          if (savedConnections) {
+            const connectionsData = JSON.parse(savedConnections)
+            console.log('🔗 [DATABASE] Restoring connections from localStorage:', {
+              connectionsCount: connectionsData.length,
+              connections: connectionsData
+            })
+            
+            // Convert back to React Flow edges with current node IDs
+            restoredEdges = connectionsData.map((conn: any) => ({
+              id: conn.id,
+              source: conn.source,
+              target: conn.target,
+              sourceHandle: conn.sourceHandle,
+              targetHandle: conn.targetHandle,
+              type: conn.type || 'default'
+            }))
+          }
+        } catch (error) {
+          console.error('❌ [DATABASE] Error restoring connections:', error)
+        }
+      }
+      
+      console.log('✅ [DATABASE] Connections restored:', {
+        connectionsCount: restoredEdges.length,
+        connections: restoredEdges.map(edge => ({
+          id: edge.id,
+          source: edge.source,
+          target: edge.target
+        }))
+      })
+      setEdges(restoredEdges)
 
       // Update workflow state
       updateWorkflowState({
@@ -744,11 +808,11 @@ export function DashboardContent() {
         workflowId: workflow.id,
         name: workflow.name,
         nodesLoaded: reactFlowNodes.length,
-        connectionsLoaded: 0,
+        connectionsLoaded: restoredEdges.length,
         timestamp: new Date().toISOString()
       })
 
-      return { workflow, nodes: reactFlowNodes, edges: reactFlowEdges }
+      return { workflow, nodes: reactFlowNodes, edges: restoredEdges }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to load workflow'
       console.error('💥 [DATABASE] Workflow load operation failed:', {
@@ -1167,6 +1231,32 @@ export function DashboardContent() {
                   )
                 } catch (error) {
                   console.error('Failed to load workflow:', error)
+                }
+              }}
+              onWorkflowDeleted={(deletedWorkflowId: string) => {
+                // Check if the deleted workflow is the currently active one
+                if (currentWorkflow && currentWorkflow.id === deletedWorkflowId) {
+                  console.log('🔄 [DASHBOARD] Current workflow was deleted, resetting to new workflow:', {
+                    deletedWorkflowId,
+                    currentWorkflowId: currentWorkflow.id,
+                    currentWorkflowName: currentWorkflow.name
+                  })
+                  
+                  // Reset to a new workflow
+                  const newState = createNewWorkflow()
+                  setNodes([])
+                  setEdges([])
+                  updateWorkflowState(newState)
+                  
+                  // Clear undo/redo history
+                  undoRedo.clearHistory()
+                  
+                  // Clear current workflow and save errors
+                  setCurrentWorkflow(null)
+                  setSaveError(null)
+                  
+                  // Close the workflow manager dialog
+                  setWorkflowManagerOpen(false)
                 }
               }}
               open={workflowManagerOpen}

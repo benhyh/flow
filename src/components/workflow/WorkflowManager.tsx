@@ -27,6 +27,7 @@ import { useAuth } from '@/providers/AuthProvider'
 interface WorkflowManagerProps {
   onLoadWorkflow: (nodes: Node[], edges: Edge[], state: WorkflowState) => void
   onCreateNew: () => void
+  onWorkflowDeleted?: (deletedWorkflowId: string) => void
   className?: string
   open?: boolean
   onOpenChange?: (open: boolean) => void
@@ -36,6 +37,7 @@ interface WorkflowManagerProps {
 export function WorkflowManager({
   onLoadWorkflow,
   onCreateNew,
+  onWorkflowDeleted,
   className = '',
   open: externalOpen,
   onOpenChange: externalOnOpenChange,
@@ -142,8 +144,21 @@ export function WorkflowManager({
 
       // Convert database nodes to React Flow nodes
       const reactFlowNodes = nodes?.map(dbNode => {
-        // Map database node types to React Flow node types
+        // Map database node types to React Flow base node types
         const nodeTypeMapping: Record<string, string> = {
+          'trigger': 'trigger',
+          'trello-action': 'action',
+          'asana-action': 'action', 
+          'logic': 'logic',
+          'ai-tagging': 'ai',
+          'ai-classification': 'ai'
+        }
+
+        // Get the base React Flow node type
+        const reactFlowNodeType = nodeTypeMapping[dbNode.node_type] || 'trigger'
+        
+        // Map database node types to their subtypes for data.nodeType
+        const nodeSubtypeMapping: Record<string, string> = {
           'trigger': 'email-trigger', // Default to email-trigger for trigger nodes
           'trello-action': 'trello-action',
           'asana-action': 'asana-action',
@@ -152,15 +167,15 @@ export function WorkflowManager({
           'ai-classification': 'ai-classification'
         }
 
-        const reactFlowNodeType = nodeTypeMapping[dbNode.node_type] || dbNode.node_type
+        const nodeSubtype = nodeSubtypeMapping[dbNode.node_type] || 'email-trigger'
 
         return {
           id: dbNode.id,
-          type: reactFlowNodeType,
+          type: reactFlowNodeType, // Use base type for React Flow
           position: { x: dbNode.position_x, y: dbNode.position_y },
           data: {
             label: dbNode.name,
-            nodeType: reactFlowNodeType,
+            nodeType: nodeSubtype, // Use subtype for custom node rendering
             icon: '', // Will be set based on node type
             color: '', // Will be set based on node type
             status: 'idle'
@@ -177,12 +192,39 @@ export function WorkflowManager({
         validationErrors: []
       }
       
-      // Load the workflow
-      onLoadWorkflow(reactFlowNodes, [], workflowState) // Empty edges for now
+      // Restore connections from localStorage (MVP solution)
+      let restoredEdges: Edge[] = []
+      if (typeof window !== 'undefined') {
+        try {
+          const savedConnections = localStorage.getItem(`workflow_connections_${workflow.id}`)
+          if (savedConnections) {
+            const connectionsData = JSON.parse(savedConnections)
+            console.log('🔗 [WORKFLOW MANAGER] Restoring connections from localStorage:', {
+              connectionsCount: connectionsData.length,
+              workflowId: workflow.id
+            })
+            
+            // Convert back to React Flow edges
+            restoredEdges = connectionsData.map((conn: any) => ({
+              id: conn.id,
+              source: conn.source,
+              target: conn.target,
+              sourceHandle: conn.sourceHandle,
+              targetHandle: conn.targetHandle,
+              type: conn.type || 'default'
+            }))
+          }
+        } catch (error) {
+          console.error('❌ [WORKFLOW MANAGER] Error restoring connections:', error)
+        }
+      }
+
+      // Load the workflow with restored connections
+      onLoadWorkflow(reactFlowNodes, restoredEdges, workflowState)
       setIsOpen(false)
       
       toast.success('Workflow loaded successfully!', {
-        description: `Loaded "${workflow.name}" with ${reactFlowNodes.length} nodes`
+        description: `Loaded "${workflow.name}" with ${reactFlowNodes.length} nodes and ${restoredEdges.length} connections`
       })
     } catch (error) {
       console.error('❌ [WORKFLOW MANAGER] Error loading workflow:', error)
@@ -221,6 +263,9 @@ export function WorkflowManager({
       }
 
       console.log('✅ [WORKFLOW MANAGER] Workflow deleted successfully:', workflowToDelete.id)
+      
+      // Notify parent component about the deletion
+      onWorkflowDeleted?.(workflowToDelete.id)
       
       // Reload workflows list
       await loadWorkflows()
